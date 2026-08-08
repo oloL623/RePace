@@ -1,6 +1,17 @@
 import { useEffect, useState, useRef } from "react";
 import KakaoMap from "../../components/KakaoMap";
 
+// 화면에서는 러닝 시간을 시:분:초 형식으로 통일해서 보여준다.
+function formatElapsedTime(totalSeconds) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [hours, minutes, seconds]
+    .map((value) => String(value).padStart(2, "0"))
+    .join(":");
+}
+
 function LiveRun() {
   const [location, setLocation] = useState({
     latitude: null,
@@ -27,6 +38,10 @@ function LiveRun() {
   // 러닝 종료 여부
   const [isRunning, setIsRunning] =
     useState(true);
+
+  // 화면에 표시할 현재 러닝 경과시간(초)
+  const [elapsedSeconds, setElapsedSeconds] =
+    useState(0);
 
   const previousPosition =
     useRef(null);
@@ -246,6 +261,31 @@ function LiveRun() {
       );
     };
   }, []);
+
+  // interval은 화면 갱신 신호로만 사용한다.
+  // 매번 시작 시각과의 차이를 계산하면 탭이 백그라운드에 있어도 시간이 누적해서 밀리지 않는다.
+  useEffect(() => {
+    if (!isRunning) {
+      return;
+    }
+
+    const timerId = setInterval(() => {
+      if (startTime.current === null) {
+        return;
+      }
+
+      setElapsedSeconds(
+        Math.floor(
+          (Date.now() - startTime.current) /
+            1000
+        )
+      );
+    }, 1000);
+
+    return () => {
+      clearInterval(timerId);
+    };
+  }, [isRunning]);
 
   // ⭐ 현재 GPS 위치와 과거 러닝 경로 비교
   useEffect(() => {
@@ -474,12 +514,15 @@ function LiveRun() {
     const endTime =
       Date.now();
 
-    const elapsedTime =
+    const finalElapsedSeconds =
       Math.floor(
         (endTime -
           startTime.current) /
           1000
       );
+
+    // 마지막 1초 tick 직전에 종료해도 저장값과 화면 표시가 같도록 즉시 동기화한다.
+    setElapsedSeconds(finalElapsedSeconds);
 
     // 러닝 기록 객체 생성
     const runRecord = {
@@ -492,7 +535,7 @@ function LiveRun() {
         endTime,
 
       elapsedTime:
-        elapsedTime,
+        finalElapsedSeconds,
 
       distance:
         totalDistance.current,
@@ -644,7 +687,10 @@ function LiveRun() {
 
       <hr />
 
-      {/* 카카오맵 */}
+      {/*
+        빨간 실선은 현재 path, 파란 점선은 선택한 과거 path다.
+        선택 기록이 없을 때 빈 배열을 넘기면 기존 과거 경로 선도 제거된다.
+      */}
       <KakaoMap
         latitude={
           location.latitude
@@ -654,6 +700,9 @@ function LiveRun() {
         }
         path={
           path
+        }
+        pastPath={
+          selectedPacer?.path ?? []
         }
       />
 
@@ -682,6 +731,13 @@ function LiveRun() {
       </p>
 
       <hr />
+
+      <h2>
+        경과 시간 :{" "}
+        {formatElapsedTime(
+          elapsedSeconds
+        )}
+      </h2>
 
       <h2>
         총 거리 :{" "}
