@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+
+    <title>RunningMate</title>
+  </head>
+
+  <body>
+    <div id="root"></div>
+
+
+    <!-- 카카오맵 SDK -->
+    <script>
+      const script = document.createElement("script");
+
+      script.src =
+        "https://dapi.kakao.com/v2/maps/sdk.js?appkey=3c6327bc7a2513a64bb195704f8d3ea7&autoload=false";
+
+
+      script.onload = () => {
+        console.log("카카오 SDK 로드 성공");
+
+        window.kakao.maps.load(() => {
+          console.log("카카오 지도 준비 완료");
+        });
+      };
+
+
+      script.onerror = () => {
+        console.log("카카오 SDK 로드 실패");
+      };
+
+
+      document.head.appendChild(script);
+    </script>
+
+
+    <!-- React 실행 -->
+    <script
+      type="module"
+      src="/src/main.jsx">
+    </script>
+
+  </body>
+</html>
