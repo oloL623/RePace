@@ -1,4 +1,4 @@
-const COMPARISON_DISTANCE_THRESHOLD_METERS = 20;
+const COMPARISON_TIME_THRESHOLD_SECONDS = 1;
 
 function isFiniteNumber(value) {
   return Number.isFinite(value);
@@ -66,16 +66,17 @@ export function formatPaceForSpeech(pace) {
   return `${minutes}분 ${seconds}초`;
 }
 
-export function getComparisonState(distanceDifference) {
-  if (!isFiniteNumber(distanceDifference)) {
+// 양수는 같은 지점에 지난번보다 빨리 도착했고, 음수는 늦게 도착했다는 뜻이다.
+export function getTimeComparisonState(timeDifference) {
+  if (!isFiniteNumber(timeDifference)) {
     return "unavailable";
   }
 
-  if (distanceDifference > COMPARISON_DISTANCE_THRESHOLD_METERS) {
+  if (timeDifference > COMPARISON_TIME_THRESHOLD_SECONDS) {
     return "ahead";
   }
 
-  if (distanceDifference < -COMPARISON_DISTANCE_THRESHOLD_METERS) {
+  if (timeDifference < -COMPARISON_TIME_THRESHOLD_SECONDS) {
     return "behind";
   }
 
@@ -83,22 +84,22 @@ export function getComparisonState(distanceDifference) {
 }
 
 export function createComparisonCoachMessage(comparison) {
-  const difference = comparison?.distanceDifference;
-  const state = getComparisonState(difference);
+  const timeDifference = comparison?.timeDifference;
+  const state = getTimeComparisonState(timeDifference);
 
   if (state === "unavailable") {
     return "";
   }
 
   if (state === "ahead") {
-    return `좋습니다. 과거의 나보다 ${Math.round(difference)} 미터 앞서고 있습니다.`;
+    return `좋습니다. 같은 지점 기준, 지난번보다 ${formatDurationForSpeech(timeDifference)} 빠릅니다. 현재 페이스를 유지하면 지난 기록보다 빠르게 완주할 수 있습니다.`;
   }
 
   if (state === "behind") {
-    return `과거의 나보다 ${Math.abs(Math.round(difference))} 미터 뒤에 있습니다. 무리하지 말고 호흡과 리듬을 유지하세요.`;
+    return `같은 지점 기준, 지난번보다 ${formatDurationForSpeech(Math.abs(timeDifference))} 느립니다. 무리하게 속도를 올리지 말고, 호흡을 유지하면서 조금씩 페이스를 조절해 보세요.`;
   }
 
-  return "과거의 나와 비슷한 거리입니다. 현재 리듬을 유지하세요.";
+  return "같은 지점 기준, 지난번 기록과 1초 이내 차이입니다. 현재 페이스를 유지하세요.";
 }
 
 export function createProgressCoachMessage({

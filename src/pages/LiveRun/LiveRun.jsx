@@ -17,7 +17,7 @@ import {
   createFinishCoachMessage,
   createKilometerCoachMessage,
   createProgressCoachMessage,
-  getComparisonState,
+  getTimeComparisonState,
 } from "../../utils/voiceCoach";
 
 const MIN_MOVEMENT_METERS = 3;
@@ -437,8 +437,8 @@ function LiveRun() {
       return;
     }
 
-    const nextComparisonState = getComparisonState(
-      pacemakerComparison.distanceDifference
+    const nextComparisonState = getTimeComparisonState(
+      pacemakerComparison.timeDifference
     );
 
     if (comparisonStateRef.current === null) {
@@ -521,7 +521,7 @@ function LiveRun() {
     );
     lastKilometerRef.current = Math.floor(distance / 1000);
     comparisonStateRef.current = pacemakerComparison
-      ? getComparisonState(pacemakerComparison.distanceDifference)
+      ? getTimeComparisonState(pacemakerComparison.timeDifference)
       : null;
     lastComparisonAnnouncementAtRef.current = elapsedSeconds;
     offCourseStateRef.current = isOffCourse;
