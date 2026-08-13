@@ -6,6 +6,16 @@ import {
   useState,
 } from "react";
 import KakaoMap from "../../components/KakaoMap";
+import { isBackendConfigured } from "../../api/apiClient";
+import {
+  finishServerRun,
+  getServerRunFeedback,
+  startServerRun,
+} from "../../api/runs";
+import {
+  getAccessToken,
+  isSupabaseConfigured,
+} from "../../lib/supabase";
 import {
   calculateDistanceMeters,
   calculatePacemakerComparison,
@@ -19,9 +29,12 @@ import {
   createProgressCoachMessage,
   getTimeComparisonState,
 } from "../../utils/voiceCoach";
+import { createKilometerSplits } from "../../utils/runSplits";
+import { loadRunPreferences } from "../../utils/runPreferences";
+import { calculateActiveElapsedSeconds } from "../../utils/runTimer";
 
 const MIN_MOVEMENT_METERS = 3;
-const MAX_GPS_ACCURACY_METERS = 300;
+const MAX_GPS_ACCURACY_METERS = 1000;
 const MAX_RUNNING_SPEED_METERS_PER_SECOND = 12;
 const VOICE_PROGRESS_INTERVAL_SECONDS = 5 * 60;
 const COMPARISON_ANNOUNCEMENT_COOLDOWN_SECONDS = 60;
@@ -108,6 +121,15 @@ function loadRunningRecords() {
   }
 }
 
+function updateRunningRecord(recordId, changes) {
+  const records = loadRunningRecords();
+  const nextRecords = records.map((record) =>
+    record.id === recordId ? { ...record, ...changes } : record
+  );
+
+  localStorage.setItem("runningRecords", JSON.stringify(nextRecords));
+}
+
 function calculateAveragePace(distance, elapsedSeconds) {
   if (distance < 100 || elapsedSeconds <= 0) {
     return null;
@@ -137,12 +159,23 @@ function LiveRun() {
   const [averagePace, setAveragePace] = useState(null);
   const [gpsStatus, setGpsStatus] = useState(getInitialGpsStatus);
   const [selectedPacer] = useState(loadSelectedPacer);
+  const [runPreferences] = useState(loadRunPreferences);
   const [path, setPath] = useState([]);
   const [isRunning, setIsRunning] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [startTime] = useState(Date.now);
-  const [voiceCoachingEnabled, setVoiceCoachingEnabled] = useState(false);
+  const [voiceCoachingEnabled, setVoiceCoachingEnabled] = useState(
+    () => loadRunPreferences().voiceCoachingEnabled
+  );
   const [lastVoiceCoachMessage, setLastVoiceCoachMessage] = useState("");
+  const [serverStatus, setServerStatus] = useState(() =>
+    isBackendConfigured && isSupabaseConfigured
+      ? "서버 연결 확인 중..."
+      : "로컬 기록 모드 (서버 환경변수 미설정)"
+  );
+  const [aiFeedback, setAiFeedback] = useState("");
+  const [isSavingToServer, setIsSavingToServer] = useState(false);
 
   const lastAcceptedPosition = useRef(null);
   const totalDistance = useRef(0);
@@ -153,6 +186,10 @@ function LiveRun() {
   const comparisonStateRef = useRef(null);
   const lastComparisonAnnouncementAtRef = useRef(0);
   const offCourseStateRef = useRef(false);
+  const runStartPromiseRef = useRef(null);
+  const isPausedRef = useRef(false);
+  const pausedAtRef = useRef(null);
+  const totalPausedMillisecondsRef = useRef(0);
 
   const voiceCoachingSupported = isSpeechSynthesisSupported();
 
@@ -195,6 +232,50 @@ function LiveRun() {
   const isOffCourse =
     pacemakerComparison?.routeDistance != null &&
     pacemakerComparison.routeDistance > routeWarningDistance;
+
+  // React 개발 모드에서 effect가 두 번 실행되어도 러닝 시작 요청은 한 번만 보낸다.
+  useEffect(() => {
+    let isActive = true;
+
+    if (!isBackendConfigured || !isSupabaseConfigured) {
+      return undefined;
+    }
+
+    if (!runStartPromiseRef.current) {
+      runStartPromiseRef.current = (async () => {
+        const accessToken = await getAccessToken();
+
+        if (!accessToken) {
+          return null;
+        }
+
+        return startServerRun({ accessToken, courseId: null });
+      })();
+    }
+
+    runStartPromiseRef.current
+      .then((serverRun) => {
+        if (!isActive) {
+          return;
+        }
+
+        setServerStatus(
+          serverRun?.id
+            ? `서버 러닝 연결 완료 (#${serverRun.id})`
+            : "로컬 기록 모드 (로그인 필요)"
+        );
+      })
+      .catch((error) => {
+        if (isActive) {
+          console.error("서버 러닝을 시작하지 못했습니다.", error);
+          setServerStatus(`로컬 기록 모드 (${error.message})`);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   // 새 안내가 이전 안내를 계속 끊지 않도록 일반 안내는 재생 중일 때 건너뛴다.
   // 코스 이탈과 종료처럼 중요한 안내만 interrupt 옵션으로 즉시 전달한다.
@@ -249,6 +330,12 @@ function LiveRun() {
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const timestamp = position.timestamp || Date.now();
+
+        // 일시정지 중 수신된 GPS 좌표와 이동거리는 러닝 기록에 포함하지 않는다.
+        if (isPausedRef.current) {
+          return;
+        }
+
         const currentPosition = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -296,10 +383,11 @@ function LiveRun() {
           nextDistance += movedDistance;
         }
 
-        const pointElapsedSeconds = Math.max(
-          0,
-          (timestamp - startTime) / 1000
-        );
+        const pointElapsedSeconds = calculateActiveElapsedSeconds({
+          startTime,
+          currentTime: timestamp,
+          totalPausedMilliseconds: totalPausedMillisecondsRef.current,
+        });
         const pathPoint = {
           latitude: currentPosition.latitude,
           longitude: currentPosition.longitude,
@@ -338,24 +426,28 @@ function LiveRun() {
 
   // interval은 화면 갱신 신호로만 사용하고 실제 시간은 시작 시각과의 차이로 계산한다.
   useEffect(() => {
-    if (!isRunning) {
+    if (!isRunning || isPaused) {
       return;
     }
 
     const timerId = setInterval(() => {
       setElapsedSeconds(
-        Math.floor((Date.now() - startTime) / 1000)
+        calculateActiveElapsedSeconds({
+          startTime,
+          currentTime: Date.now(),
+          totalPausedMilliseconds: totalPausedMillisecondsRef.current,
+        })
       );
     }, 1000);
 
     return () => {
       clearInterval(timerId);
     };
-  }, [isRunning, startTime]);
+  }, [isPaused, isRunning, startTime]);
 
   // 5분마다 시간·거리·페이스와 과거 기록 비교를 한 번에 요약한다.
   useEffect(() => {
-    if (!voiceCoachingEnabled || !isRunning) {
+    if (!voiceCoachingEnabled || !isRunning || isPaused) {
       return;
     }
 
@@ -387,6 +479,7 @@ function LiveRun() {
     distance,
     elapsedSeconds,
     isRunning,
+    isPaused,
     pacemakerComparison,
     speakCoachMessage,
     voiceCoachingEnabled,
@@ -394,7 +487,7 @@ function LiveRun() {
 
   // 거리 이정표는 1km마다 알려 화면을 보지 않고도 진행 상황을 확인하게 한다.
   useEffect(() => {
-    if (!voiceCoachingEnabled || !isRunning) {
+    if (!voiceCoachingEnabled || !isRunning || isPaused) {
       return;
     }
 
@@ -422,6 +515,7 @@ function LiveRun() {
     distance,
     elapsedSeconds,
     isRunning,
+    isPaused,
     pacemakerComparison,
     speakCoachMessage,
     voiceCoachingEnabled,
@@ -432,6 +526,7 @@ function LiveRun() {
     if (
       !voiceCoachingEnabled ||
       !isRunning ||
+      isPaused ||
       !pacemakerComparison
     ) {
       return;
@@ -463,6 +558,7 @@ function LiveRun() {
   }, [
     elapsedSeconds,
     isRunning,
+    isPaused,
     pacemakerComparison,
     speakCoachMessage,
     voiceCoachingEnabled,
@@ -470,7 +566,7 @@ function LiveRun() {
 
   // 코스 이탈은 즉시 안내하고, 다시 코스로 돌아왔을 때도 복귀를 알려준다.
   useEffect(() => {
-    if (!voiceCoachingEnabled || !isRunning) {
+    if (!voiceCoachingEnabled || !isRunning || isPaused) {
       return;
     }
 
@@ -489,6 +585,7 @@ function LiveRun() {
     elapsedSeconds,
     isOffCourse,
     isRunning,
+    isPaused,
     speakCoachMessage,
     voiceCoachingEnabled,
   ]);
@@ -548,7 +645,56 @@ function LiveRun() {
     );
   }
 
-  function handleStopRunning() {
+  function handlePauseRunning() {
+    if (!isRunning || isPausedRef.current) {
+      return;
+    }
+
+    const pausedAt = Date.now();
+
+    pausedAtRef.current = pausedAt;
+    isPausedRef.current = true;
+    lastAcceptedPosition.current = null;
+    setElapsedSeconds(
+      calculateActiveElapsedSeconds({
+        startTime,
+        currentTime: pausedAt,
+        totalPausedMilliseconds: totalPausedMillisecondsRef.current,
+      })
+    );
+    setIsPaused(true);
+    setGpsStatus("러닝 일시정지");
+
+    if (isSpeechSynthesisSupported()) {
+      window.speechSynthesis.cancel();
+      activeUtteranceRef.current = null;
+    }
+  }
+
+  function handleResumeRunning() {
+    if (!isRunning || !isPausedRef.current) {
+      return;
+    }
+
+    const resumedAt = Date.now();
+
+    totalPausedMillisecondsRef.current += Math.max(
+      0,
+      resumedAt - pausedAtRef.current
+    );
+    pausedAtRef.current = null;
+    isPausedRef.current = false;
+    // 재개 후 첫 좌표를 새 기준점으로 삼아 정지 중 이동이 거리에 포함되지 않게 한다.
+    lastAcceptedPosition.current = null;
+    setIsPaused(false);
+    setGpsStatus("GPS 연결 재개 중...");
+
+    if (voiceCoachingEnabled) {
+      speakCoachMessage("러닝을 다시 시작합니다.", { interrupt: true });
+    }
+  }
+
+  async function handleStopRunning() {
     if (!isRunning) {
       return;
     }
@@ -559,9 +705,12 @@ function LiveRun() {
     }
 
     const endTime = Date.now();
-    const finalElapsedSeconds = Math.floor(
-      (endTime - startTime) / 1000
-    );
+    const finalElapsedSeconds = calculateActiveElapsedSeconds({
+      startTime,
+      currentTime: endTime,
+      totalPausedMilliseconds: totalPausedMillisecondsRef.current,
+      pausedAt: pausedAtRef.current,
+    });
     const finalAveragePace = calculateAveragePace(
       totalDistance.current,
       finalElapsedSeconds
@@ -598,6 +747,9 @@ function LiveRun() {
 
     setElapsedSeconds(finalElapsedSeconds);
     setIsRunning(false);
+    setIsPaused(false);
+    isPausedRef.current = false;
+    pausedAtRef.current = null;
     setGpsStatus("러닝 종료 및 기록 저장 완료");
 
     if (voiceCoachingEnabled) {
@@ -611,6 +763,68 @@ function LiveRun() {
       );
       setVoiceCoachingEnabled(false);
     }
+
+    // 서버 저장에 실패해도 위에서 저장한 localStorage 기록은 유지한다.
+    if (!isBackendConfigured || !isSupabaseConfigured) {
+      setServerStatus("로컬 기록 저장 완료");
+      return;
+    }
+
+    setIsSavingToServer(true);
+    setServerStatus("서버에 러닝 기록 저장 중...");
+
+    try {
+      const serverRun = await runStartPromiseRef.current;
+      const accessToken = await getAccessToken();
+
+      if (!serverRun?.id || !accessToken) {
+        setServerStatus("로컬 기록 저장 완료 (로그인 필요)");
+        return;
+      }
+
+      const selectedGhostRunId = Number(
+        selectedPacer?.serverRunId ?? selectedPacer?.backendRunId
+      );
+
+      await finishServerRun({
+        accessToken,
+        runId: serverRun.id,
+        endTime: new Date(endTime).toISOString(),
+        totalDistance: totalDistance.current,
+        totalTime: finalElapsedSeconds,
+        gpsPath: recordedPath.map((point) => [
+          point.latitude,
+          point.longitude,
+        ]),
+        splits: createKilometerSplits(recordedPath),
+        ghostRunId: Number.isInteger(selectedGhostRunId)
+          ? selectedGhostRunId
+          : null,
+        // 공개 범위 UI가 확정되기 전까지 러닝 기록은 비공개로 저장한다.
+        isPublic: false,
+      });
+
+      const feedback = await getServerRunFeedback(serverRun.id);
+      const feedbackText = feedback?.ai_feedback_text ?? "";
+
+      updateRunningRecord(runRecord.id, {
+        serverRunId: serverRun.id,
+        serverSynced: true,
+        aiFeedback: feedbackText,
+        segmentAnalysis: feedback?.segment_analysis ?? [],
+      });
+      setAiFeedback(feedbackText);
+      setServerStatus("서버 저장 및 AI 분석 완료");
+    } catch (error) {
+      console.error("서버에 러닝 기록을 저장하지 못했습니다.", error);
+      updateRunningRecord(runRecord.id, {
+        serverSynced: false,
+        serverSyncError: error.message,
+      });
+      setServerStatus(`로컬 저장 완료 · 서버 저장 실패 (${error.message})`);
+    } finally {
+      setIsSavingToServer(false);
+    }
   }
 
   return (
@@ -618,6 +832,13 @@ function LiveRun() {
       <h1>Live Run</h1>
 
       <h3>{gpsStatus}</h3>
+      <p>백엔드 연동 : {serverStatus}</p>
+      <p>러닝 상태 : {isPaused ? "일시정지" : isRunning ? "진행 중" : "종료"}</p>
+
+      <p>
+        목표 : {runPreferences.targetDistanceKilometers} km ·{" "}
+        {runPreferences.targetPaceMinutes} 분/km
+      </p>
 
       <hr />
 
@@ -762,18 +983,38 @@ function LiveRun() {
       <hr />
 
       {isRunning ? (
-        <button
-          onClick={handleStopRunning}
-          style={{
-            padding: "12px 24px",
-            fontSize: "18px",
-            cursor: "pointer",
-          }}
-        >
-          러닝 종료
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={isPaused ? handleResumeRunning : handlePauseRunning}
+          >
+            {isPaused ? "러닝 재개" : "일시정지"}
+          </button>{" "}
+          <button
+            onClick={handleStopRunning}
+            style={{
+              padding: "12px 24px",
+              fontSize: "18px",
+              cursor: "pointer",
+            }}
+          >
+            러닝 종료
+          </button>
+        </>
       ) : (
-        <h2>러닝 기록이 저장되었습니다.</h2>
+        <>
+          <h2>
+            {isSavingToServer
+              ? "러닝 기록을 서버에 저장하고 있습니다."
+              : "러닝 기록이 저장되었습니다."}
+          </h2>
+          {aiFeedback && (
+            <section>
+              <h2>🤖 AI 러닝 분석</h2>
+              <p>{aiFeedback}</p>
+            </section>
+          )}
+        </>
       )}
     </div>
   );
