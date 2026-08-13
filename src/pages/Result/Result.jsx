@@ -1,33 +1,29 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import KakaoMap from "../../components/KakaoMap";
+
+function loadRunningRecords() {
+  try {
+    const savedRecords = JSON.parse(
+      localStorage.getItem("runningRecords")
+    );
+
+    return Array.isArray(savedRecords)
+      ? [...savedRecords].reverse()
+      : [];
+  } catch (error) {
+    console.error("저장된 러닝 기록을 불러오지 못했습니다.", error);
+    return [];
+  }
+}
 
 function Result() {
   const navigate = useNavigate();
 
-  const [records, setRecords] = useState([]);
+  // 최초 렌더링에서 한 번만 읽어 빈 화면이 잠깐 보이는 현상과 불필요한 effect를 없앤다.
+  const [records] = useState(loadRunningRecords);
   const [selectedRecord, setSelectedRecord] =
-    useState(null);
-
-  useEffect(() => {
-    const savedRecords =
-      JSON.parse(
-        localStorage.getItem("runningRecords")
-      ) || [];
-
-    const reversedRecords = [
-      ...savedRecords,
-    ].reverse();
-
-    setRecords(reversedRecords);
-
-    // 가장 최근 기록을 기본 선택
-    if (reversedRecords.length > 0) {
-      setSelectedRecord(
-        reversedRecords[0]
-      );
-    }
-  }, []);
+    useState(() => records[0] ?? null);
 
   // 기록이 없는 경우
   if (records.length === 0) {
