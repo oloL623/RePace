@@ -45,3 +45,9 @@ export function getMyBestRun({ accessToken, courseId = null }) {
 
   return apiRequest(`/runs/me/best${query}`, { accessToken });
 }
+
+export function getGhostRun(runId, accessToken) {
+  return apiRequest(`/runs/${runId}/ghost`, {
+    accessToken,
+  });
+}
