@@ -6,6 +6,16 @@ import {
   useState,
 } from "react";
 import KakaoMap from "../../components/KakaoMap";
+import { isBackendConfigured } from "../../api/apiClient";
+import {
+  finishServerRun,
+  getServerRunFeedback,
+  startServerRun,
+} from "../../api/runs";
+import {
+  getAccessToken,
+  isSupabaseConfigured,
+} from "../../lib/supabase";
 import {
   calculateDistanceMeters,
   calculatePacemakerComparison,
@@ -19,9 +29,13 @@ import {
   createProgressCoachMessage,
   getTimeComparisonState,
 } from "../../utils/voiceCoach";
+import { createKilometerSplits } from "../../utils/runSplits";
+import { loadRunPreferences } from "../../utils/runPreferences";
+import { calculateActiveElapsedSeconds } from "../../utils/runTimer";
+import "./LiveRun.css";
 
 const MIN_MOVEMENT_METERS = 3;
-const MAX_GPS_ACCURACY_METERS = 300;
+const MAX_GPS_ACCURACY_METERS = 1000;
 const MAX_RUNNING_SPEED_METERS_PER_SECOND = 12;
 const VOICE_PROGRESS_INTERVAL_SECONDS = 5 * 60;
 const COMPARISON_ANNOUNCEMENT_COOLDOWN_SECONDS = 60;
@@ -108,6 +122,15 @@ function loadRunningRecords() {
   }
 }
 
+function updateRunningRecord(recordId, changes) {
+  const records = loadRunningRecords();
+  const nextRecords = records.map((record) =>
+    record.id === recordId ? { ...record, ...changes } : record
+  );
+
+  localStorage.setItem("runningRecords", JSON.stringify(nextRecords));
+}
+
 function calculateAveragePace(distance, elapsedSeconds) {
   if (distance < 100 || elapsedSeconds <= 0) {
     return null;
@@ -137,12 +160,23 @@ function LiveRun() {
   const [averagePace, setAveragePace] = useState(null);
   const [gpsStatus, setGpsStatus] = useState(getInitialGpsStatus);
   const [selectedPacer] = useState(loadSelectedPacer);
+  const [runPreferences] = useState(loadRunPreferences);
   const [path, setPath] = useState([]);
   const [isRunning, setIsRunning] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [startTime] = useState(Date.now);
-  const [voiceCoachingEnabled, setVoiceCoachingEnabled] = useState(false);
+  const [voiceCoachingEnabled, setVoiceCoachingEnabled] = useState(
+    () => loadRunPreferences().voiceCoachingEnabled
+  );
   const [lastVoiceCoachMessage, setLastVoiceCoachMessage] = useState("");
+  const [serverStatus, setServerStatus] = useState(() =>
+    isBackendConfigured && isSupabaseConfigured
+      ? "서버 연결 확인 중..."
+      : "로컬 기록 모드 (서버 환경변수 미설정)"
+  );
+  const [aiFeedback, setAiFeedback] = useState("");
+  const [isSavingToServer, setIsSavingToServer] = useState(false);
 
   const lastAcceptedPosition = useRef(null);
   const totalDistance = useRef(0);
@@ -153,6 +187,10 @@ function LiveRun() {
   const comparisonStateRef = useRef(null);
   const lastComparisonAnnouncementAtRef = useRef(0);
   const offCourseStateRef = useRef(false);
+  const runStartPromiseRef = useRef(null);
+  const isPausedRef = useRef(false);
+  const pausedAtRef = useRef(null);
+  const totalPausedMillisecondsRef = useRef(0);
 
   const voiceCoachingSupported = isSpeechSynthesisSupported();
 
@@ -195,6 +233,50 @@ function LiveRun() {
   const isOffCourse =
     pacemakerComparison?.routeDistance != null &&
     pacemakerComparison.routeDistance > routeWarningDistance;
+
+  // React 개발 모드에서 effect가 두 번 실행되어도 러닝 시작 요청은 한 번만 보낸다.
+  useEffect(() => {
+    let isActive = true;
+
+    if (!isBackendConfigured || !isSupabaseConfigured) {
+      return undefined;
+    }
+
+    if (!runStartPromiseRef.current) {
+      runStartPromiseRef.current = (async () => {
+        const accessToken = await getAccessToken();
+
+        if (!accessToken) {
+          return null;
+        }
+
+        return startServerRun({ accessToken, courseId: null });
+      })();
+    }
+
+    runStartPromiseRef.current
+      .then((serverRun) => {
+        if (!isActive) {
+          return;
+        }
+
+        setServerStatus(
+          serverRun?.id
+            ? `서버 러닝 연결 완료 (#${serverRun.id})`
+            : "로컬 기록 모드 (로그인 필요)"
+        );
+      })
+      .catch((error) => {
+        if (isActive) {
+          console.error("서버 러닝을 시작하지 못했습니다.", error);
+          setServerStatus(`로컬 기록 모드 (${error.message})`);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   // 새 안내가 이전 안내를 계속 끊지 않도록 일반 안내는 재생 중일 때 건너뛴다.
   // 코스 이탈과 종료처럼 중요한 안내만 interrupt 옵션으로 즉시 전달한다.
@@ -249,6 +331,12 @@ function LiveRun() {
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const timestamp = position.timestamp || Date.now();
+
+        // 일시정지 중 수신된 GPS 좌표와 이동거리는 러닝 기록에 포함하지 않는다.
+        if (isPausedRef.current) {
+          return;
+        }
+
         const currentPosition = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -296,10 +384,11 @@ function LiveRun() {
           nextDistance += movedDistance;
         }
 
-        const pointElapsedSeconds = Math.max(
-          0,
-          (timestamp - startTime) / 1000
-        );
+        const pointElapsedSeconds = calculateActiveElapsedSeconds({
+          startTime,
+          currentTime: timestamp,
+          totalPausedMilliseconds: totalPausedMillisecondsRef.current,
+        });
         const pathPoint = {
           latitude: currentPosition.latitude,
           longitude: currentPosition.longitude,
@@ -338,24 +427,28 @@ function LiveRun() {
 
   // interval은 화면 갱신 신호로만 사용하고 실제 시간은 시작 시각과의 차이로 계산한다.
   useEffect(() => {
-    if (!isRunning) {
+    if (!isRunning || isPaused) {
       return;
     }
 
     const timerId = setInterval(() => {
       setElapsedSeconds(
-        Math.floor((Date.now() - startTime) / 1000)
+        calculateActiveElapsedSeconds({
+          startTime,
+          currentTime: Date.now(),
+          totalPausedMilliseconds: totalPausedMillisecondsRef.current,
+        })
       );
     }, 1000);
 
     return () => {
       clearInterval(timerId);
     };
-  }, [isRunning, startTime]);
+  }, [isPaused, isRunning, startTime]);
 
   // 5분마다 시간·거리·페이스와 과거 기록 비교를 한 번에 요약한다.
   useEffect(() => {
-    if (!voiceCoachingEnabled || !isRunning) {
+    if (!voiceCoachingEnabled || !isRunning || isPaused) {
       return;
     }
 
@@ -387,6 +480,7 @@ function LiveRun() {
     distance,
     elapsedSeconds,
     isRunning,
+    isPaused,
     pacemakerComparison,
     speakCoachMessage,
     voiceCoachingEnabled,
@@ -394,7 +488,7 @@ function LiveRun() {
 
   // 거리 이정표는 1km마다 알려 화면을 보지 않고도 진행 상황을 확인하게 한다.
   useEffect(() => {
-    if (!voiceCoachingEnabled || !isRunning) {
+    if (!voiceCoachingEnabled || !isRunning || isPaused) {
       return;
     }
 
@@ -422,6 +516,7 @@ function LiveRun() {
     distance,
     elapsedSeconds,
     isRunning,
+    isPaused,
     pacemakerComparison,
     speakCoachMessage,
     voiceCoachingEnabled,
@@ -432,6 +527,7 @@ function LiveRun() {
     if (
       !voiceCoachingEnabled ||
       !isRunning ||
+      isPaused ||
       !pacemakerComparison
     ) {
       return;
@@ -463,6 +559,7 @@ function LiveRun() {
   }, [
     elapsedSeconds,
     isRunning,
+    isPaused,
     pacemakerComparison,
     speakCoachMessage,
     voiceCoachingEnabled,
@@ -470,7 +567,7 @@ function LiveRun() {
 
   // 코스 이탈은 즉시 안내하고, 다시 코스로 돌아왔을 때도 복귀를 알려준다.
   useEffect(() => {
-    if (!voiceCoachingEnabled || !isRunning) {
+    if (!voiceCoachingEnabled || !isRunning || isPaused) {
       return;
     }
 
@@ -489,6 +586,7 @@ function LiveRun() {
     elapsedSeconds,
     isOffCourse,
     isRunning,
+    isPaused,
     speakCoachMessage,
     voiceCoachingEnabled,
   ]);
@@ -548,7 +646,56 @@ function LiveRun() {
     );
   }
 
-  function handleStopRunning() {
+  function handlePauseRunning() {
+    if (!isRunning || isPausedRef.current) {
+      return;
+    }
+
+    const pausedAt = Date.now();
+
+    pausedAtRef.current = pausedAt;
+    isPausedRef.current = true;
+    lastAcceptedPosition.current = null;
+    setElapsedSeconds(
+      calculateActiveElapsedSeconds({
+        startTime,
+        currentTime: pausedAt,
+        totalPausedMilliseconds: totalPausedMillisecondsRef.current,
+      })
+    );
+    setIsPaused(true);
+    setGpsStatus("러닝 일시정지");
+
+    if (isSpeechSynthesisSupported()) {
+      window.speechSynthesis.cancel();
+      activeUtteranceRef.current = null;
+    }
+  }
+
+  function handleResumeRunning() {
+    if (!isRunning || !isPausedRef.current) {
+      return;
+    }
+
+    const resumedAt = Date.now();
+
+    totalPausedMillisecondsRef.current += Math.max(
+      0,
+      resumedAt - pausedAtRef.current
+    );
+    pausedAtRef.current = null;
+    isPausedRef.current = false;
+    // 재개 후 첫 좌표를 새 기준점으로 삼아 정지 중 이동이 거리에 포함되지 않게 한다.
+    lastAcceptedPosition.current = null;
+    setIsPaused(false);
+    setGpsStatus("GPS 연결 재개 중...");
+
+    if (voiceCoachingEnabled) {
+      speakCoachMessage("러닝을 다시 시작합니다.", { interrupt: true });
+    }
+  }
+
+  async function handleStopRunning() {
     if (!isRunning) {
       return;
     }
@@ -559,9 +706,12 @@ function LiveRun() {
     }
 
     const endTime = Date.now();
-    const finalElapsedSeconds = Math.floor(
-      (endTime - startTime) / 1000
-    );
+    const finalElapsedSeconds = calculateActiveElapsedSeconds({
+      startTime,
+      currentTime: endTime,
+      totalPausedMilliseconds: totalPausedMillisecondsRef.current,
+      pausedAt: pausedAtRef.current,
+    });
     const finalAveragePace = calculateAveragePace(
       totalDistance.current,
       finalElapsedSeconds
@@ -598,6 +748,9 @@ function LiveRun() {
 
     setElapsedSeconds(finalElapsedSeconds);
     setIsRunning(false);
+    setIsPaused(false);
+    isPausedRef.current = false;
+    pausedAtRef.current = null;
     setGpsStatus("러닝 종료 및 기록 저장 완료");
 
     if (voiceCoachingEnabled) {
@@ -611,171 +764,182 @@ function LiveRun() {
       );
       setVoiceCoachingEnabled(false);
     }
+
+    // 서버 저장에 실패해도 위에서 저장한 localStorage 기록은 유지한다.
+    if (!isBackendConfigured || !isSupabaseConfigured) {
+      setServerStatus("로컬 기록 저장 완료");
+      return;
+    }
+
+    setIsSavingToServer(true);
+    setServerStatus("서버에 러닝 기록 저장 중...");
+
+    try {
+      const serverRun = await runStartPromiseRef.current;
+      const accessToken = await getAccessToken();
+
+      if (!serverRun?.id || !accessToken) {
+        setServerStatus("로컬 기록 저장 완료 (로그인 필요)");
+        return;
+      }
+
+      const selectedGhostRunId = Number(
+        selectedPacer?.serverRunId ?? selectedPacer?.backendRunId
+      );
+
+      await finishServerRun({
+        accessToken,
+        runId: serverRun.id,
+        endTime: new Date(endTime).toISOString(),
+        totalDistance: totalDistance.current,
+        totalTime: finalElapsedSeconds,
+        gpsPath: recordedPath.map((point) => [
+          point.latitude,
+          point.longitude,
+        ]),
+        splits: createKilometerSplits(recordedPath),
+        ghostRunId: Number.isInteger(selectedGhostRunId)
+          ? selectedGhostRunId
+          : null,
+        // 공개 범위 UI가 확정되기 전까지 러닝 기록은 비공개로 저장한다.
+        isPublic: false,
+      });
+
+      const feedback = await getServerRunFeedback(serverRun.id);
+      const feedbackText = feedback?.ai_feedback_text ?? "";
+
+      updateRunningRecord(runRecord.id, {
+        serverRunId: serverRun.id,
+        serverSynced: true,
+        aiFeedback: feedbackText,
+        segmentAnalysis: feedback?.segment_analysis ?? [],
+      });
+      setAiFeedback(feedbackText);
+      setServerStatus("서버 저장 및 AI 분석 완료");
+    } catch (error) {
+      console.error("서버에 러닝 기록을 저장하지 못했습니다.", error);
+      updateRunningRecord(runRecord.id, {
+        serverSynced: false,
+        serverSyncError: error.message,
+      });
+      setServerStatus(`로컬 저장 완료 · 서버 저장 실패 (${error.message})`);
+    } finally {
+      setIsSavingToServer(false);
+    }
   }
 
+  const goalDistanceMeters = runPreferences.targetDistanceKilometers * 1000;
+  const goalProgress = goalDistanceMeters > 0
+    ? Math.min(100, (distance / goalDistanceMeters) * 100)
+    : 0;
+  const coachHeadline = isPaused
+    ? "잠시 숨을 고르는 중"
+    : pacemakerComparison?.timeDifference > 1
+      ? `${formatTimeDifference(pacemakerComparison.timeDifference)} 앞서고 있어요`
+      : pacemakerComparison?.timeDifference < -1
+        ? "호흡을 정리하고 리듬을 찾아요"
+        : selectedPacer
+          ? "과거의 나와 나란히 달리는 중"
+          : "나만의 페이스로 달리는 중";
+
   return (
-    <div>
-      <h1>Live Run</h1>
+    <main className="live-screen">
+      <header className="live-header">
+        <div className="live-brand"><span>R</span><strong>RePace</strong></div>
+        <span className={`live-state ${isPaused ? "is-paused" : ""}`}>
+          {isPaused ? "일시정지" : isRunning ? "LIVE" : "완료"}
+        </span>
+      </header>
 
-      <h3>{gpsStatus}</h3>
+      <section className="live-coach">
+        <p>{gpsStatus}</p>
+        <div className={`live-mascot ${isPaused ? "is-paused" : ""}`} aria-hidden="true">🐯</div>
+        <h1>{coachHeadline}</h1>
+        {isOffCourse && <div className="live-warning">코스에서 벗어났어요. 지도를 확인하세요.</div>}
+      </section>
 
-      <hr />
+      <section className="live-metrics" aria-label="실시간 러닝 정보">
+        <div><strong>{(distance / 1000).toFixed(2)}</strong><span>km</span><small>거리</small></div>
+        <div><strong>{formatElapsedTime(elapsedSeconds)}</strong><span /><small>시간</small></div>
+        <div><strong>{formatPace(currentPace).replace(" 분/km", "")}</strong><span>/km</span><small>현재 페이스</small></div>
+      </section>
 
-      <h2>🔊 TTS 음성 코칭</h2>
-
-      {voiceCoachingSupported ? (
-        <>
-          <button type="button" onClick={handleToggleVoiceCoaching}>
-            {voiceCoachingEnabled ? "음성 코칭 끄기" : "음성 코칭 켜기"}
-          </button>{" "}
-          <button type="button" onClick={handleTestVoiceCoaching}>
-            현재 상태 듣기
-          </button>
-          <p>
-            자동 안내 : 1km 통과, 5분 진행 요약, 과거 기록과의 상태 변화,
-            코스 이탈·복귀, 러닝 종료
-          </p>
-          <p>
-            상태 : {voiceCoachingEnabled ? "자동 안내 켜짐" : "자동 안내 꺼짐"}
-          </p>
-          {lastVoiceCoachMessage && (
-            <p>마지막 음성 안내 : {lastVoiceCoachMessage}</p>
-          )}
-        </>
-      ) : (
-        <p>이 브라우저는 음성 합성 기능을 지원하지 않습니다.</p>
-      )}
+      <section className="live-progress-card">
+        <div>
+          <span>오늘의 목표</span>
+          <strong>{runPreferences.targetDistanceKilometers} km · {runPreferences.targetPaceMinutes}분/km</strong>
+        </div>
+        <div className="live-progress-track"><span style={{ width: `${goalProgress}%` }} /></div>
+        <small>{goalProgress.toFixed(0)}% 완료</small>
+      </section>
 
       {selectedPacer && (
-        <>
-          <hr />
-
-          <h2>🏃 과거의 나</h2>
-
-          <p>
-            과거 총 거리 :{" "}
-            {(selectedPacer.distance / 1000).toFixed(2)} km
-          </p>
-
-          <p>
-            과거 평균 페이스 : {formatPace(selectedPacer.pace)}
-          </p>
-
-          {pacemakerProfile.mode === "estimated" && (
-            <p>
-              기존 기록에는 좌표별 시간이 없어 전체 기록으로
-              페이스를 추정합니다.
-            </p>
+        <section className="live-comparison-card">
+          <div>
+            <span>과거의 나</span>
+            <strong>{formatPace(selectedPacer.pace)}</strong>
+          </div>
+          {pacemakerComparison ? (
+            <div className={pacemakerComparison.timeDifference >= 0 ? "is-ahead" : "is-behind"}>
+              <span>{pacemakerComparison.timeDifference >= 0 ? "앞서는 중" : "따라가는 중"}</span>
+              <strong>{formatTimeDifference(pacemakerComparison.timeDifference)}</strong>
+            </div>
+          ) : (
+            <div><span>비교 준비</span><strong>GPS 확인 중</strong></div>
           )}
-        </>
+          {pacemakerProfile.mode === "estimated" && <p>좌표별 시간이 없어 전체 페이스로 비교해요.</p>}
+          {pacemakerProfile.mode === "unavailable" && <p>선택한 기록에는 비교 가능한 GPS 경로가 없어요.</p>}
+        </section>
       )}
 
-      {selectedPacer && pacemakerProfile.mode === "unavailable" && (
-        <>
-          <hr />
-          <p>선택한 기록에는 페이스메이커 계산에 필요한 경로가 없습니다.</p>
-        </>
+      {voiceCoachingSupported && (
+        <section className="live-voice-card">
+          <button type="button" onClick={handleToggleVoiceCoaching}>
+            <span aria-hidden="true">🔊</span>
+            <div><strong>음성 코칭</strong><small>{voiceCoachingEnabled ? "자동 안내 켜짐" : "자동 안내 꺼짐"}</small></div>
+          </button>
+          <button type="button" onClick={handleTestVoiceCoaching}>현재 상태 듣기</button>
+          {lastVoiceCoachMessage && <p>“{lastVoiceCoachMessage}”</p>}
+        </section>
       )}
 
-      {pacemakerComparison && (
-        <>
-          <hr />
+      <details className="live-map-card">
+        <summary>실시간 경로와 GPS 상세 보기</summary>
+        {/* 현재 경로는 초록 실선, 비교할 과거 경로는 파란 점선으로 표시한다. */}
+        <div className="live-map-wrap">
+          <KakaoMap
+            latitude={location.latitude}
+            longitude={location.longitude}
+            path={path}
+            pastPath={selectedPacer?.path ?? []}
+          />
+        </div>
+        <div className="live-gps-details">
+          <span>위도 {location.latitude ?? "-"}</span>
+          <span>경도 {location.longitude ?? "-"}</span>
+          <span>속도 {location.speed != null ? location.speed.toFixed(2) : "-"} m/s</span>
+          <span>정확도 {location.accuracy != null ? `±${location.accuracy.toFixed(0)}m` : "-"}</span>
+        </div>
+      </details>
 
-          <h2>⏱ 실시간 페이스메이커</h2>
-
-          <p>현재 페이스 : {formatPace(currentPace)}</p>
-          <p>
-            같은 시각 과거 페이스 :{" "}
-            {formatPace(pacemakerComparison.ghostPace)}
-          </p>
-          <p>
-            현재 거리 : {(distance / 1000).toFixed(2)} km
-          </p>
-          <p>
-            같은 시각 과거 거리 :{" "}
-            {(pacemakerComparison.ghostDistance / 1000).toFixed(2)} km
-          </p>
-          <p>
-            남은 코스 :{" "}
-            {(pacemakerComparison.remainingDistance / 1000).toFixed(2)} km
-          </p>
-
-          <h3>
-            {pacemakerComparison.distanceDifference > 10
-              ? `🟢 과거의 나보다 ${pacemakerComparison.distanceDifference.toFixed(0)}m 앞서고 있습니다.`
-              : pacemakerComparison.distanceDifference < -10
-                ? `🔴 과거의 나보다 ${Math.abs(pacemakerComparison.distanceDifference).toFixed(0)}m 뒤처져 있습니다.`
-                : "🟡 과거의 나와 비슷한 거리입니다."}
-          </h3>
-
-          <h3>
-            {pacemakerComparison.timeDifference > 1
-              ? `과거의 나보다 ${formatTimeDifference(pacemakerComparison.timeDifference)} 빠릅니다.`
-              : pacemakerComparison.timeDifference < -1
-                ? `과거의 나보다 ${formatTimeDifference(pacemakerComparison.timeDifference)} 느립니다.`
-                : "과거의 나와 비슷한 시간입니다."}
-          </h3>
-
-          <p>
-            과거 코스와 현재 위치 거리 :{" "}
-            {pacemakerComparison.routeDistance?.toFixed(1) ?? "-"} m
-          </p>
-
-          {isOffCourse && (
-            <h3>⚠️ 과거 코스에서 벗어났습니다. 경로를 확인하세요.</h3>
-          )}
-        </>
-      )}
-
-      <hr />
-
-      {/* 빨간 실선은 현재 경로, 파란 점선은 비교할 과거 경로다. */}
-      <KakaoMap
-        latitude={location.latitude}
-        longitude={location.longitude}
-        path={path}
-        pastPath={selectedPacer?.path ?? []}
-      />
-
-      <hr />
-
-      <p>위도 : {location.latitude ?? "-"}</p>
-      <p>경도 : {location.longitude ?? "-"}</p>
-      <p>
-        속도 :{" "}
-        {location.speed != null ? location.speed.toFixed(2) : "-"} m/s
-      </p>
-      <p>
-        GPS 정확도 :{" "}
-        {location.accuracy != null
-          ? `±${location.accuracy.toFixed(0)}m`
-          : "-"}
-      </p>
-
-      <hr />
-
-      <h2>경과 시간 : {formatElapsedTime(elapsedSeconds)}</h2>
-      <h2>총 거리 : {(distance / 1000).toFixed(2)} km</h2>
-      <h2>현재 페이스 : {formatPace(currentPace)}</h2>
-      <h2>평균 페이스 : {formatPace(averagePace)}</h2>
-
-      <hr />
+      <p className="live-server-status">백엔드 연동 · {serverStatus}</p>
 
       {isRunning ? (
-        <button
-          onClick={handleStopRunning}
-          style={{
-            padding: "12px 24px",
-            fontSize: "18px",
-            cursor: "pointer",
-          }}
-        >
-          러닝 종료
-        </button>
+        <div className="live-controls">
+          <button className="live-pause-button" type="button" onClick={isPaused ? handleResumeRunning : handlePauseRunning}>
+            {isPaused ? "▶" : "Ⅱ"}<span>{isPaused ? "재개" : "일시정지"}</span>
+          </button>
+          <button className="live-stop-button" type="button" onClick={handleStopRunning}>러닝 종료</button>
+        </div>
       ) : (
-        <h2>러닝 기록이 저장되었습니다.</h2>
+        <section className="live-finish-card">
+          <span aria-hidden="true">✓</span>
+          <h2>{isSavingToServer ? "기록을 서버에 저장하고 있어요." : "오늘의 러닝을 저장했어요."}</h2>
+          <p>평균 페이스 {formatPace(averagePace)} · {formatElapsedTime(elapsedSeconds)}</p>
+          {aiFeedback && <div><strong>AI 러닝 분석</strong><p>{aiFeedback}</p></div>}
+        </section>
       )}
-    </div>
+    </main>
   );
 }
 

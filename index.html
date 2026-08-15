@@ -10,37 +10,20 @@
       content="width=device-width, initial-scale=1.0"
     />
 
-    <title>RunningMate</title>
+    <meta name="theme-color" content="#08b76b" />
+    <meta
+      name="description"
+      content="어제의 나와 다시 달리는 실시간 러닝 페이스메이커 RePace"
+    />
+    <title>RePace</title>
   </head>
 
   <body>
     <div id="root"></div>
 
 
-    <!-- 카카오맵 SDK -->
-    <script>
-      const script = document.createElement("script");
-
-      script.src =
-        "https://dapi.kakao.com/v2/maps/sdk.js?appkey=3c6327bc7a2513a64bb195704f8d3ea7&autoload=false";
-
-
-      script.onload = () => {
-        console.log("카카오 SDK 로드 성공");
-
-        window.kakao.maps.load(() => {
-          console.log("카카오 지도 준비 완료");
-        });
-      };
-
-
-      script.onerror = () => {
-        console.log("카카오 SDK 로드 실패");
-      };
-
-
-      document.head.appendChild(script);
-    </script>
+    <!-- 실제 JavaScript 키는 커밋하지 않고 .env.local에서 주입한다. -->
+    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=%VITE_KAKAO_JAVASCRIPT_KEY%&autoload=false"></script>
 
 
     <!-- React 실행 -->

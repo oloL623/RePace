@@ -50,11 +50,11 @@ function KakaoMap({ latitude, longitude, path, pastPath }) {
         marker.setMap(map);
         markerInstance.current = marker;
 
-        // 빨간 실선: 현재 러닝 경로
+        // RePace 초록 실선: 현재 러닝 경로
         const polyline = new window.kakao.maps.Polyline({
           path: [],
           strokeWeight: 5,
-          strokeColor: "#FF0000",
+          strokeColor: "#08B76B",
           strokeOpacity: 0.8,
           strokeStyle: "solid",
         });
@@ -153,7 +153,7 @@ function KakaoMap({ latitude, longitude, path, pastPath }) {
       ref={mapRef}
       style={{
         width: "100%",
-        height: "400px",
+        height: "260px",
       }}
     />
   );
