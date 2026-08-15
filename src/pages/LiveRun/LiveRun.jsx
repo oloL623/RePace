@@ -32,6 +32,7 @@ import {
 import { createKilometerSplits } from "../../utils/runSplits";
 import { loadRunPreferences } from "../../utils/runPreferences";
 import { calculateActiveElapsedSeconds } from "../../utils/runTimer";
+import "./LiveRun.css";
 
 const MIN_MOVEMENT_METERS = 3;
 const MAX_GPS_ACCURACY_METERS = 1000;
@@ -827,196 +828,118 @@ function LiveRun() {
     }
   }
 
+  const goalDistanceMeters = runPreferences.targetDistanceKilometers * 1000;
+  const goalProgress = goalDistanceMeters > 0
+    ? Math.min(100, (distance / goalDistanceMeters) * 100)
+    : 0;
+  const coachHeadline = isPaused
+    ? "잠시 숨을 고르는 중"
+    : pacemakerComparison?.timeDifference > 1
+      ? `${formatTimeDifference(pacemakerComparison.timeDifference)} 앞서고 있어요`
+      : pacemakerComparison?.timeDifference < -1
+        ? "호흡을 정리하고 리듬을 찾아요"
+        : selectedPacer
+          ? "과거의 나와 나란히 달리는 중"
+          : "나만의 페이스로 달리는 중";
+
   return (
-    <div>
-      <h1>Live Run</h1>
+    <main className="live-screen">
+      <header className="live-header">
+        <div className="live-brand"><span>R</span><strong>RePace</strong></div>
+        <span className={`live-state ${isPaused ? "is-paused" : ""}`}>
+          {isPaused ? "일시정지" : isRunning ? "LIVE" : "완료"}
+        </span>
+      </header>
 
-      <h3>{gpsStatus}</h3>
-      <p>백엔드 연동 : {serverStatus}</p>
-      <p>러닝 상태 : {isPaused ? "일시정지" : isRunning ? "진행 중" : "종료"}</p>
+      <section className="live-coach">
+        <p>{gpsStatus}</p>
+        <div className={`live-mascot ${isPaused ? "is-paused" : ""}`} aria-hidden="true">🐯</div>
+        <h1>{coachHeadline}</h1>
+        {isOffCourse && <div className="live-warning">코스에서 벗어났어요. 지도를 확인하세요.</div>}
+      </section>
 
-      <p>
-        목표 : {runPreferences.targetDistanceKilometers} km ·{" "}
-        {runPreferences.targetPaceMinutes} 분/km
-      </p>
+      <section className="live-metrics" aria-label="실시간 러닝 정보">
+        <div><strong>{(distance / 1000).toFixed(2)}</strong><span>km</span><small>거리</small></div>
+        <div><strong>{formatElapsedTime(elapsedSeconds)}</strong><span /><small>시간</small></div>
+        <div><strong>{formatPace(currentPace).replace(" 분/km", "")}</strong><span>/km</span><small>현재 페이스</small></div>
+      </section>
 
-      <hr />
-
-      <h2>🔊 TTS 음성 코칭</h2>
-
-      {voiceCoachingSupported ? (
-        <>
-          <button type="button" onClick={handleToggleVoiceCoaching}>
-            {voiceCoachingEnabled ? "음성 코칭 끄기" : "음성 코칭 켜기"}
-          </button>{" "}
-          <button type="button" onClick={handleTestVoiceCoaching}>
-            현재 상태 듣기
-          </button>
-          <p>
-            자동 안내 : 1km 통과, 5분 진행 요약, 과거 기록과의 상태 변화,
-            코스 이탈·복귀, 러닝 종료
-          </p>
-          <p>
-            상태 : {voiceCoachingEnabled ? "자동 안내 켜짐" : "자동 안내 꺼짐"}
-          </p>
-          {lastVoiceCoachMessage && (
-            <p>마지막 음성 안내 : {lastVoiceCoachMessage}</p>
-          )}
-        </>
-      ) : (
-        <p>이 브라우저는 음성 합성 기능을 지원하지 않습니다.</p>
-      )}
+      <section className="live-progress-card">
+        <div>
+          <span>오늘의 목표</span>
+          <strong>{runPreferences.targetDistanceKilometers} km · {runPreferences.targetPaceMinutes}분/km</strong>
+        </div>
+        <div className="live-progress-track"><span style={{ width: `${goalProgress}%` }} /></div>
+        <small>{goalProgress.toFixed(0)}% 완료</small>
+      </section>
 
       {selectedPacer && (
-        <>
-          <hr />
-
-          <h2>🏃 과거의 나</h2>
-
-          <p>
-            과거 총 거리 :{" "}
-            {(selectedPacer.distance / 1000).toFixed(2)} km
-          </p>
-
-          <p>
-            과거 평균 페이스 : {formatPace(selectedPacer.pace)}
-          </p>
-
-          {pacemakerProfile.mode === "estimated" && (
-            <p>
-              기존 기록에는 좌표별 시간이 없어 전체 기록으로
-              페이스를 추정합니다.
-            </p>
+        <section className="live-comparison-card">
+          <div>
+            <span>과거의 나</span>
+            <strong>{formatPace(selectedPacer.pace)}</strong>
+          </div>
+          {pacemakerComparison ? (
+            <div className={pacemakerComparison.timeDifference >= 0 ? "is-ahead" : "is-behind"}>
+              <span>{pacemakerComparison.timeDifference >= 0 ? "앞서는 중" : "따라가는 중"}</span>
+              <strong>{formatTimeDifference(pacemakerComparison.timeDifference)}</strong>
+            </div>
+          ) : (
+            <div><span>비교 준비</span><strong>GPS 확인 중</strong></div>
           )}
-        </>
+          {pacemakerProfile.mode === "estimated" && <p>좌표별 시간이 없어 전체 페이스로 비교해요.</p>}
+          {pacemakerProfile.mode === "unavailable" && <p>선택한 기록에는 비교 가능한 GPS 경로가 없어요.</p>}
+        </section>
       )}
 
-      {selectedPacer && pacemakerProfile.mode === "unavailable" && (
-        <>
-          <hr />
-          <p>선택한 기록에는 페이스메이커 계산에 필요한 경로가 없습니다.</p>
-        </>
+      {voiceCoachingSupported && (
+        <section className="live-voice-card">
+          <button type="button" onClick={handleToggleVoiceCoaching}>
+            <span aria-hidden="true">🔊</span>
+            <div><strong>음성 코칭</strong><small>{voiceCoachingEnabled ? "자동 안내 켜짐" : "자동 안내 꺼짐"}</small></div>
+          </button>
+          <button type="button" onClick={handleTestVoiceCoaching}>현재 상태 듣기</button>
+          {lastVoiceCoachMessage && <p>“{lastVoiceCoachMessage}”</p>}
+        </section>
       )}
 
-      {pacemakerComparison && (
-        <>
-          <hr />
+      <details className="live-map-card">
+        <summary>실시간 경로와 GPS 상세 보기</summary>
+        {/* 현재 경로는 초록 실선, 비교할 과거 경로는 파란 점선으로 표시한다. */}
+        <div className="live-map-wrap">
+          <KakaoMap
+            latitude={location.latitude}
+            longitude={location.longitude}
+            path={path}
+            pastPath={selectedPacer?.path ?? []}
+          />
+        </div>
+        <div className="live-gps-details">
+          <span>위도 {location.latitude ?? "-"}</span>
+          <span>경도 {location.longitude ?? "-"}</span>
+          <span>속도 {location.speed != null ? location.speed.toFixed(2) : "-"} m/s</span>
+          <span>정확도 {location.accuracy != null ? `±${location.accuracy.toFixed(0)}m` : "-"}</span>
+        </div>
+      </details>
 
-          <h2>⏱ 실시간 페이스메이커</h2>
-
-          <p>현재 페이스 : {formatPace(currentPace)}</p>
-          <p>
-            같은 시각 과거 페이스 :{" "}
-            {formatPace(pacemakerComparison.ghostPace)}
-          </p>
-          <p>
-            현재 거리 : {(distance / 1000).toFixed(2)} km
-          </p>
-          <p>
-            같은 시각 과거 거리 :{" "}
-            {(pacemakerComparison.ghostDistance / 1000).toFixed(2)} km
-          </p>
-          <p>
-            남은 코스 :{" "}
-            {(pacemakerComparison.remainingDistance / 1000).toFixed(2)} km
-          </p>
-
-          <h3>
-            {pacemakerComparison.distanceDifference > 10
-              ? `🟢 과거의 나보다 ${pacemakerComparison.distanceDifference.toFixed(0)}m 앞서고 있습니다.`
-              : pacemakerComparison.distanceDifference < -10
-                ? `🔴 과거의 나보다 ${Math.abs(pacemakerComparison.distanceDifference).toFixed(0)}m 뒤처져 있습니다.`
-                : "🟡 과거의 나와 비슷한 거리입니다."}
-          </h3>
-
-          <h3>
-            {pacemakerComparison.timeDifference > 1
-              ? `과거의 나보다 ${formatTimeDifference(pacemakerComparison.timeDifference)} 빠릅니다.`
-              : pacemakerComparison.timeDifference < -1
-                ? `과거의 나보다 ${formatTimeDifference(pacemakerComparison.timeDifference)} 느립니다.`
-                : "과거의 나와 비슷한 시간입니다."}
-          </h3>
-
-          <p>
-            과거 코스와 현재 위치 거리 :{" "}
-            {pacemakerComparison.routeDistance?.toFixed(1) ?? "-"} m
-          </p>
-
-          {isOffCourse && (
-            <h3>⚠️ 과거 코스에서 벗어났습니다. 경로를 확인하세요.</h3>
-          )}
-        </>
-      )}
-
-      <hr />
-
-      {/* 빨간 실선은 현재 경로, 파란 점선은 비교할 과거 경로다. */}
-      <KakaoMap
-        latitude={location.latitude}
-        longitude={location.longitude}
-        path={path}
-        pastPath={selectedPacer?.path ?? []}
-      />
-
-      <hr />
-
-      <p>위도 : {location.latitude ?? "-"}</p>
-      <p>경도 : {location.longitude ?? "-"}</p>
-      <p>
-        속도 :{" "}
-        {location.speed != null ? location.speed.toFixed(2) : "-"} m/s
-      </p>
-      <p>
-        GPS 정확도 :{" "}
-        {location.accuracy != null
-          ? `±${location.accuracy.toFixed(0)}m`
-          : "-"}
-      </p>
-
-      <hr />
-
-      <h2>경과 시간 : {formatElapsedTime(elapsedSeconds)}</h2>
-      <h2>총 거리 : {(distance / 1000).toFixed(2)} km</h2>
-      <h2>현재 페이스 : {formatPace(currentPace)}</h2>
-      <h2>평균 페이스 : {formatPace(averagePace)}</h2>
-
-      <hr />
+      <p className="live-server-status">백엔드 연동 · {serverStatus}</p>
 
       {isRunning ? (
-        <>
-          <button
-            type="button"
-            onClick={isPaused ? handleResumeRunning : handlePauseRunning}
-          >
-            {isPaused ? "러닝 재개" : "일시정지"}
-          </button>{" "}
-          <button
-            onClick={handleStopRunning}
-            style={{
-              padding: "12px 24px",
-              fontSize: "18px",
-              cursor: "pointer",
-            }}
-          >
-            러닝 종료
+        <div className="live-controls">
+          <button className="live-pause-button" type="button" onClick={isPaused ? handleResumeRunning : handlePauseRunning}>
+            {isPaused ? "▶" : "Ⅱ"}<span>{isPaused ? "재개" : "일시정지"}</span>
           </button>
-        </>
+          <button className="live-stop-button" type="button" onClick={handleStopRunning}>러닝 종료</button>
+        </div>
       ) : (
-        <>
-          <h2>
-            {isSavingToServer
-              ? "러닝 기록을 서버에 저장하고 있습니다."
-              : "러닝 기록이 저장되었습니다."}
-          </h2>
-          {aiFeedback && (
-            <section>
-              <h2>🤖 AI 러닝 분석</h2>
-              <p>{aiFeedback}</p>
-            </section>
-          )}
-        </>
+        <section className="live-finish-card">
+          <span aria-hidden="true">✓</span>
+          <h2>{isSavingToServer ? "기록을 서버에 저장하고 있어요." : "오늘의 러닝을 저장했어요."}</h2>
+          <p>평균 페이스 {formatPace(averagePace)} · {formatElapsedTime(elapsedSeconds)}</p>
+          {aiFeedback && <div><strong>AI 러닝 분석</strong><p>{aiFeedback}</p></div>}
+        </section>
       )}
-    </div>
+    </main>
   );
 }
 

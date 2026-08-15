@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  loadRunPreferences,
-  saveRunPreferences,
-} from "../../utils/runPreferences";
+import PageShell from "../../components/PageShell";
+import { loadRunPreferences, saveRunPreferences } from "../../utils/runPreferences";
+import "./RunReady.css";
 
 function loadSelectedPacer() {
   try {
@@ -24,7 +23,7 @@ function formatPace(pace) {
   const minutes = Math.floor(pace);
   const seconds = Math.round((pace - minutes) * 60);
 
-  return `${minutes}:${String(seconds).padStart(2, "0")} 분/km`;
+  return `${minutes}'${String(seconds).padStart(2, "0")}`;
 }
 
 function RunReady() {
@@ -47,81 +46,98 @@ function RunReady() {
   }
 
   return (
-    <main>
-      <h1>달리기 준비 완료</h1>
+    <PageShell className="ready-screen">
+      <p className="page-kicker">READY TO RUN</p>
+      <h1 className="page-title">달리기 준비 완료</h1>
+      <p className="page-description">오늘의 목표를 확인하고 나만의 페이스로 출발하세요.</p>
 
-      {selectedPacer ? (
-        <section>
-          <h2>과거 기록에 도전</h2>
-          <p>거리 : {(selectedPacer.distance / 1000).toFixed(2)} km</p>
-          <p>시간 : {Math.floor(selectedPacer.elapsedTime / 60)}분</p>
-          <p>평균 페이스 : {formatPace(selectedPacer.pace)}</p>
-          <button type="button" onClick={handleRemovePacer}>
-            과거 기록 비교 해제
-          </button>
-        </section>
-      ) : (
-        <p>과거 기록 비교 없이 새로운 러닝을 시작합니다.</p>
-      )}
-
-      <section>
-        <h2>러닝 목표</h2>
+      <section className="ready-goals" aria-label="러닝 목표 설정">
         <label>
-          목표 거리(km)
-          <input
-            type="number"
-            min="0.1"
-            step="0.1"
-            value={preferences.targetDistanceKilometers}
-            onChange={(event) =>
-              updatePreference(
-                "targetDistanceKilometers",
-                Math.max(0.1, Number(event.target.value) || 0.1)
-              )
-            }
-          />
+          <span>목표 거리</span>
+          <div>
+            <input
+              type="number"
+              min="0.1"
+              step="0.1"
+              value={preferences.targetDistanceKilometers}
+              onChange={(event) =>
+                updatePreference(
+                  "targetDistanceKilometers",
+                  Math.max(0.1, Number(event.target.value) || 0.1)
+                )
+              }
+            />
+            <strong>km</strong>
+          </div>
         </label>
-        <br />
         <label>
-          목표 페이스(분/km)
-          <input
-            type="number"
-            min="2"
-            max="20"
-            step="0.1"
-            value={preferences.targetPaceMinutes}
-            onChange={(event) =>
-              updatePreference(
-                "targetPaceMinutes",
-                Math.max(2, Number(event.target.value) || 2)
-              )
-            }
-          />
+          <span>목표 페이스</span>
+          <div>
+            <input
+              type="number"
+              min="2"
+              max="20"
+              step="0.1"
+              value={preferences.targetPaceMinutes}
+              onChange={(event) =>
+                updatePreference(
+                  "targetPaceMinutes",
+                  Math.max(2, Number(event.target.value) || 2)
+                )
+              }
+            />
+            <strong>분/km</strong>
+          </div>
         </label>
       </section>
 
-      <section>
-        <h2>음성 코칭</h2>
-        <label>
+      <section className="ready-card">
+        <div className="ready-card__heading">
+          <div>
+            <span>PACE MAKER</span>
+            <h2>{selectedPacer ? "과거의 나와 함께 달려요" : "새로운 기록을 만들어요"}</h2>
+          </div>
+          <span className="ready-card__icon" aria-hidden="true">🐯</span>
+        </div>
+
+        {selectedPacer ? (
+          <>
+            <div className="ready-pacer-stats">
+              <div><strong>{(selectedPacer.distance / 1000).toFixed(2)}</strong><span>km</span></div>
+              <div><strong>{Math.floor(selectedPacer.elapsedTime / 60)}</strong><span>분</span></div>
+              <div><strong>{formatPace(selectedPacer.pace)}</strong><span>페이스</span></div>
+            </div>
+            <button className="ready-link-button" type="button" onClick={handleRemovePacer}>
+              과거 기록 비교 해제
+            </button>
+          </>
+        ) : (
+          <p>비교 기록 없이 자유롭게 달립니다. 종료 후 오늘 기록을 다음 페이스메이커로 선택할 수 있어요.</p>
+        )}
+      </section>
+
+      <section className="ready-voice-card">
+        <div>
+          <span aria-hidden="true">🔊</span>
+          <div>
+            <strong>음성 페이스 코칭</strong>
+            <p>기록 차이와 페이스 변화를 달리는 중 알려드려요.</p>
+          </div>
+        </div>
+        <label className="switch" aria-label="음성 코칭 사용">
           <input
             type="checkbox"
             checked={preferences.voiceCoachingEnabled}
-            onChange={(event) =>
-              updatePreference("voiceCoachingEnabled", event.target.checked)
-            }
+            onChange={(event) => updatePreference("voiceCoachingEnabled", event.target.checked)}
           />
-          러닝 중 자동 음성 안내 사용
+          <span />
         </label>
       </section>
 
-      <hr />
-      <button type="button" onClick={() => navigate("/home")}>
-        뒤로 가기
-      </button>{" "}
-      <button type="button" onClick={handleStartRunning}>
+      <button className="primary-button full-button ready-start" type="button" onClick={handleStartRunning}>
         달리기 시작
       </button>
-    </main>
+    </PageShell>
   );
 }
 

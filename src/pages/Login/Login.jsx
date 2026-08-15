@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  isSupabaseConfigured,
-  supabase,
-} from "../../lib/supabase";
+import AppHeader from "../../components/AppHeader";
+import { isSupabaseConfigured, supabase } from "../../lib/supabase";
+import "./Login.css";
 
 function Login() {
   const navigate = useNavigate();
@@ -12,15 +11,14 @@ function Login() {
   const [session, setSession] = useState(null);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mode, setMode] = useState("signin");
 
   useEffect(() => {
     if (!supabase) {
       return undefined;
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-    });
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
 
     // 토큰 갱신과 로그아웃도 화면에 바로 반영한다.
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
@@ -30,15 +28,14 @@ function Login() {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  async function handleAuth(mode) {
+  async function handleAuth(nextMode) {
     if (!supabase || isSubmitting) {
       return;
     }
 
     const trimmedEmail = email.trim();
 
-    // 회원가입 버튼도 form submit과 동일한 입력 검증을 거치게 한다.
-    // 값이 비어 있으면 Supabase가 익명 가입 요청으로 해석할 수 있다.
+    // 빈 이메일은 Supabase가 익명 가입 요청으로 해석할 수 있어 프론트에서 먼저 막는다.
     if (!trimmedEmail) {
       setMessage("이메일을 입력해 주세요.");
       return;
@@ -54,7 +51,7 @@ function Login() {
 
     const credentials = { email: trimmedEmail, password };
     const { error } =
-      mode === "signup"
+      nextMode === "signup"
         ? await supabase.auth.signUp(credentials)
         : await supabase.auth.signInWithPassword(credentials);
 
@@ -64,8 +61,8 @@ function Login() {
           ? "이메일과 비밀번호를 모두 입력한 뒤 다시 시도해 주세요."
           : error.message
       );
-    } else if (mode === "signup") {
-      setMessage("회원가입 요청이 완료되었습니다. 이메일 인증 설정을 확인해 주세요.");
+    } else if (nextMode === "signup") {
+      setMessage("회원가입이 완료되었습니다. 이메일 인증 설정을 확인해 주세요.");
     } else {
       navigate("/home");
     }
@@ -80,80 +77,108 @@ function Login() {
 
   if (!isSupabaseConfigured) {
     return (
-      <main>
-        <h1>로그인</h1>
-        <p>
-          Supabase 환경변수가 없어 현재는 로컬 기록 모드로 동작합니다.
-          .env 파일에 VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를 설정해
-          주세요.
-        </p>
-        <button type="button" onClick={() => navigate("/home")}>
-          로컬 모드로 계속하기
-        </button>
-      </main>
+      <div className="auth-screen">
+        <AppHeader />
+        <main className="auth-content auth-content--center">
+          <div className="auth-icon" aria-hidden="true">🏃</div>
+          <p className="page-kicker">LOCAL MODE</p>
+          <h1 className="page-title">로컬 기록으로<br />먼저 달려볼까요?</h1>
+          <p className="page-description">
+            Supabase 환경변수가 없어 로그인 없이 기기에 기록을 저장합니다.
+          </p>
+          <button className="primary-button full-button" type="button" onClick={() => navigate("/home")}>
+            로컬 모드로 계속하기
+          </button>
+        </main>
+      </div>
     );
   }
 
   if (session) {
     return (
-      <main>
-        <h1>로그인 완료</h1>
-        <p>{session.user.email}</p>
-        <button type="button" onClick={() => navigate("/home")}>
-          홈으로 이동
-        </button>{" "}
-        <button type="button" onClick={handleSignOut}>
-          로그아웃
-        </button>
-      </main>
+      <div className="auth-screen">
+        <AppHeader />
+        <main className="auth-content auth-content--center">
+          <div className="auth-icon" aria-hidden="true">🐯</div>
+          <p className="page-kicker">WELCOME BACK</p>
+          <h1 className="page-title">다시 만났네요!</h1>
+          <p className="page-description">{session.user.email}</p>
+          <button className="primary-button full-button" type="button" onClick={() => navigate("/home")}>
+            홈으로 이동
+          </button>
+          <button className="auth-text-button" type="button" onClick={handleSignOut}>
+            다른 계정으로 로그인
+          </button>
+        </main>
+      </div>
     );
   }
 
+  const isSignup = mode === "signup";
+
   return (
-    <main>
-      <h1>로그인</h1>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          handleAuth("signin");
-        }}
-      >
-        <label>
-          이메일
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            autoComplete="email"
-            required
-          />
-        </label>
-        <br />
-        <label>
-          비밀번호
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="current-password"
-            minLength={6}
-            required
-          />
-        </label>
-        <br />
-        <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "처리 중..." : "로그인"}
-        </button>{" "}
-        <button
-          type="button"
-          disabled={isSubmitting}
-          onClick={() => handleAuth("signup")}
+    <div className="auth-screen">
+      <AppHeader />
+      <main className="auth-content">
+        <p className="page-kicker">{isSignup ? "JOIN REPACE" : "WELCOME BACK"}</p>
+        <h1 className="page-title">
+          {isSignup ? "어제의 나와 달리는\n새로운 경험을 시작해요." : "돌아온 걸 환영해요!\n오늘도 함께 달려볼까요?"}
+        </h1>
+        <p className="page-description">
+          나의 기록을 안전하게 보관하고 지난 페이스와 다시 달려보세요.
+        </p>
+
+        <div className="auth-tabs" role="tablist" aria-label="로그인 방식 선택">
+          <button className={!isSignup ? "is-active" : ""} type="button" onClick={() => { setMode("signin"); setMessage(""); }}>
+            로그인
+          </button>
+          <button className={isSignup ? "is-active" : ""} type="button" onClick={() => { setMode("signup"); setMessage(""); }}>
+            회원가입
+          </button>
+        </div>
+
+        <form
+          className="auth-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleAuth(mode);
+          }}
         >
-          회원가입
+          <label>
+            이메일
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="runner@example.com"
+              autoComplete="email"
+              required
+            />
+          </label>
+          <label>
+            비밀번호
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="6자 이상 입력"
+              autoComplete={isSignup ? "new-password" : "current-password"}
+              minLength={6}
+              required
+            />
+          </label>
+          <button className="primary-button full-button" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "처리 중..." : isSignup ? "RePace 시작하기" : "로그인"}
+          </button>
+        </form>
+
+        {message && <p className="status-message" role="status">{message}</p>}
+
+        <button className="auth-text-button" type="button" onClick={() => navigate("/home")}>
+          로그인 없이 둘러보기
         </button>
-      </form>
-      {message && <p>{message}</p>}
-    </main>
+      </main>
+    </div>
   );
 }
 

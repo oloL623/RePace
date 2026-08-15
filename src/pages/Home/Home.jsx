@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import PageShell from "../../components/PageShell";
 import { getMyBestRun } from "../../api/runs";
 import { isBackendConfigured } from "../../api/apiClient";
-import {
-  getAccessToken,
-  isSupabaseConfigured,
-  supabase,
-} from "../../lib/supabase";
+import { getAccessToken, isSupabaseConfigured, supabase } from "../../lib/supabase";
 import { normalizeServerRunRecord } from "../../utils/serverRunRecord";
+import "./Home.css";
 
 function loadRunningRecords() {
   try {
@@ -28,24 +26,45 @@ function formatPace(pace) {
   const minutes = Math.floor(pace);
   const seconds = Math.round((pace - minutes) * 60);
 
-  return `${minutes}:${String(seconds).padStart(2, "0")} 분/km`;
+  return `${minutes}'${String(seconds).padStart(2, "0")}`;
 }
 
-function RunSummary({ title, record, onSelect }) {
+function formatRunTime(seconds = 0) {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+
+  return `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
+function RunSummary({ eyebrow, title, record, onSelect }) {
   if (!record) {
     return null;
   }
 
   return (
-    <section>
-      <h2>{title}</h2>
-      <p>거리 : {(record.distance / 1000).toFixed(2)} km</p>
-      <p>시간 : {Math.floor(record.elapsedTime / 60)}분</p>
-      <p>평균 페이스 : {formatPace(record.pace)}</p>
-      <button type="button" onClick={() => onSelect(record)}>
-        이 기록에 도전하기
+    <article className="home-record-card">
+      <div>
+        <span className="home-record-card__eyebrow">{eyebrow}</span>
+        <h2>{title}</h2>
+      </div>
+      <div className="home-record-card__stats">
+        <div>
+          <strong>{formatRunTime(record.elapsedTime)}</strong>
+          <span>시간</span>
+        </div>
+        <div>
+          <strong>{(record.distance / 1000).toFixed(2)}</strong>
+          <span>km</span>
+        </div>
+        <div>
+          <strong>{formatPace(record.pace)}</strong>
+          <span>평균 페이스</span>
+        </div>
+      </div>
+      <button className="secondary-button full-button" type="button" onClick={() => onSelect(record)}>
+        이 기록에 다시 도전하기
       </button>
-    </section>
+    </article>
   );
 }
 
@@ -113,42 +132,67 @@ function Home() {
     navigate("/login");
   }
 
+  const featuredRecord = serverBestRecord ?? localBestRecord ?? recentRecord;
+
   return (
-    <main>
-      <h1>GhostRun</h1>
-      <p>어떤 방식으로 달려볼까요?</p>
+    <PageShell
+      className="home-screen"
+      headerAction={
+        <button className="home-logout" type="button" onClick={handleSignOut}>
+          로그아웃
+        </button>
+      }
+    >
+      <section className="home-hero">
+        <p className="page-kicker">TODAY&apos;S RUN</p>
+        <h1 className="page-title">어떤 방식으로<br />달려볼까요?</h1>
 
-      <button type="button" onClick={() => prepareRun()}>
-        새로운 러닝 준비
-      </button>{" "}
-      <button type="button" onClick={() => navigate("/result")}>
-        전체 기록 보기
-      </button>{" "}
-      <button type="button" onClick={() => navigate("/shared-courses")}>
-        공유 코스 보기
-      </button>
+        <div className="home-run-options">
+          <button className="is-active" type="button" onClick={() => prepareRun()}>
+            <span aria-hidden="true">▶</span>
+            <strong>새로운 러닝</strong>
+            <small>나만의 목표로 시작</small>
+          </button>
+          <button type="button" onClick={() => navigate("/result")}>
+            <span aria-hidden="true">↻</span>
+            <strong>과거의 나</strong>
+            <small>이전 기록에 도전</small>
+          </button>
+        </div>
+      </section>
 
-      <RunSummary
-        title="최근 러닝 기록"
-        record={recentRecord}
-        onSelect={prepareRun}
-      />
-      <RunSummary
-        title={serverBestRecord ? "서버 최고 기록" : "로컬 최고 기록"}
-        record={serverBestRecord ?? localBestRecord}
-        onSelect={prepareRun}
-      />
-
-      {!recentRecord && !serverBestRecord && (
-        <p>아직 저장된 러닝 기록이 없습니다. 첫 러닝을 시작해 보세요.</p>
+      {featuredRecord ? (
+        <RunSummary
+          eyebrow={serverBestRecord ? "SERVER BEST" : "MY BEST"}
+          title={serverBestRecord ? "서버 최고 기록" : "나의 좋은 페이스"}
+          record={featuredRecord}
+          onSelect={prepareRun}
+        />
+      ) : (
+        <div className="home-first-run">
+          <span aria-hidden="true">🐯</span>
+          <div>
+            <strong>첫 러닝을 기다리고 있어요.</strong>
+            <p>달리기를 마치면 나만의 페이스가 여기에 쌓입니다.</p>
+          </div>
+        </div>
       )}
-      {serverMessage && <p>{serverMessage}</p>}
 
-      <hr />
-      <button type="button" onClick={handleSignOut}>
-        로그아웃
+      {recentRecord && featuredRecord?.id !== recentRecord.id && (
+        <RunSummary
+          eyebrow="RECENT RUN"
+          title="가장 최근 러닝"
+          record={recentRecord}
+          onSelect={prepareRun}
+        />
+      )}
+
+      {serverMessage && <p className="status-message">{serverMessage}</p>}
+
+      <button className="primary-button full-button home-start-button" type="button" onClick={() => prepareRun()}>
+        달리기 준비하기
       </button>
-    </main>
+    </PageShell>
   );
 }
 
