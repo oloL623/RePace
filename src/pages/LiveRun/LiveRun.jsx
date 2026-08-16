@@ -8,6 +8,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import KakaoMap from "../../components/KakaoMap";
 import { isBackendConfigured } from "../../api/apiClient";
+import { requestCoachSpeech } from "../../api/voiceCoachTts";
 import {
   finishServerRun,
   getServerRunFeedback,
@@ -29,7 +30,6 @@ import {
   createKilometerCoachMessage,
   createProgressCoachMessage,
   getTimeComparisonState,
-  selectPreferredKoreanVoice,
 } from "../../utils/voiceCoach";
 import { createKilometerSplits } from "../../utils/runSplits";
 import { loadRunPreferences } from "../../utils/runPreferences";
@@ -41,61 +41,19 @@ const MAX_GPS_ACCURACY_METERS = 1000;
 const MAX_RUNNING_SPEED_METERS_PER_SECOND = 12;
 const VOICE_PROGRESS_INTERVAL_SECONDS = 5 * 60;
 const COMPARISON_ANNOUNCEMENT_COOLDOWN_SECONDS = 60;
-const COACH_AUDIO_BASE_PATH = "/audio/voice-coach";
-const FIXED_COACH_AUDIO = {
-  startPacer: {
-    fileName: "coach_start_pacer.mp3",
-    message: "좋아요, 음성 코칭을 시작할게요. 지난 기록과 비교하면서 안내해 드릴게요. 주변을 살피며 안전하게 달려요.",
-  },
-  startFree: {
-    fileName: "coach_start_free.mp3",
-    message: "좋아요, 음성 코칭을 시작할게요. 거리와 페이스를 안내해 드릴게요. 주변을 살피며 안전하게 달려요.",
-  },
-  pause: {
-    fileName: "coach_pause.mp3",
-    message: "러닝을 잠시 멈췄어요. 준비되면 다시 시작해 주세요.",
-  },
-  resume: {
-    fileName: "coach_resume.mp3",
-    message: "좋아요, 다시 달려볼게요.",
-  },
-  offCourse: {
-    fileName: "coach_off_course.mp3",
-    message: "코스에서 벗어났어요. 주변을 살피고 지도를 확인해 주세요.",
-  },
-  backOnCourse: {
-    fileName: "coach_back_on_course.mp3",
-    message: "코스로 돌아왔어요. 계속 달려볼게요.",
-  },
-  samePace: {
-    fileName: "coach_same_pace.mp3",
-    message: "지난번과 거의 같은 페이스예요. 지금 리듬 그대로 유지해 주세요.",
-  },
-  gpsUnstable: {
-    fileName: "coach_gps_unstable.mp3",
-    message: "GPS 신호가 불안정해요. 잠시 후 위치를 다시 확인할게요.",
-  },
-  gpsRecovered: {
-    fileName: "coach_gps_recovered.mp3",
-    message: "GPS 연결이 안정됐어요. 경로 기록을 계속할게요.",
-  },
-  finishIntro: {
-    fileName: "coach_finish_intro.mp3",
-    message: "오늘 러닝을 마쳤어요.",
-  },
-  finishOutro: {
-    fileName: "coach_finish_outro.mp3",
-    message: "오늘도 정말 수고 많았어요. 천천히 걸으면서 호흡을 정리해 주세요.",
-  },
+const COACH_MESSAGES = {
+  startPacer: "좋아요, 음성 코칭을 시작할게요. 지난 기록과 비교하면서 안내해 드릴게요. 주변을 살피며 안전하게 달려요.",
+  startFree: "좋아요, 음성 코칭을 시작할게요. 거리와 페이스를 안내해 드릴게요. 주변을 살피며 안전하게 달려요.",
+  pause: "러닝을 잠시 멈췄어요. 준비되면 다시 시작해 주세요.",
+  resume: "좋아요, 다시 달려볼게요.",
+  offCourse: "코스에서 벗어났어요. 주변을 살피고 지도를 확인해 주세요.",
+  backOnCourse: "코스로 돌아왔어요. 계속 달려볼게요.",
+  samePace: "지난번과 거의 같은 페이스예요. 지금 리듬 그대로 유지해 주세요.",
+  gpsUnstable: "GPS 신호가 불안정해요. 잠시 후 위치를 다시 확인할게요.",
+  gpsRecovered: "GPS 연결이 안정됐어요. 경로 기록을 계속할게요.",
+  finishIntro: "오늘 러닝을 마쳤어요.",
+  finishOutro: "오늘도 정말 수고 많았어요. 천천히 걸으면서 호흡을 정리해 주세요.",
 };
-
-function isSpeechSynthesisSupported() {
-  return (
-    typeof window !== "undefined" &&
-    "speechSynthesis" in window &&
-    "SpeechSynthesisUtterance" in window
-  );
-}
 
 function isCoachAudioSupported() {
   return typeof window !== "undefined" && "Audio" in window;
@@ -235,9 +193,9 @@ function LiveRun() {
   const lastAcceptedPosition = useRef(null);
   const totalDistance = useRef(0);
   const watchIdRef = useRef(null);
-  const activeUtteranceRef = useRef(null);
   const activeCoachAudioRef = useRef(null);
-  const preferredVoiceRef = useRef(null);
+  const activeCoachAudioUrlRef = useRef(null);
+  const activeCoachTtsRequestRef = useRef(null);
   const hasPlayedStartAudioRef = useRef(false);
   const lastProgressIntervalRef = useRef(0);
   const lastKilometerRef = useRef(0);
@@ -250,8 +208,7 @@ function LiveRun() {
   const pausedAtRef = useRef(null);
   const totalPausedMillisecondsRef = useRef(0);
 
-  const voiceCoachingSupported =
-    isSpeechSynthesisSupported() || isCoachAudioSupported();
+  const voiceCoachingSupported = isCoachAudioSupported();
 
   const pacemakerProfile = useMemo(
     () => createPacemakerProfile(selectedPacer),
@@ -292,26 +249,6 @@ function LiveRun() {
   const isOffCourse =
     pacemakerComparison?.routeDistance != null &&
     pacemakerComparison.routeDistance > routeWarningDistance;
-
-  // Chrome와 Safari는 음성 목록을 늦게 불러올 수 있어 변경 이벤트에서도 다시 선택한다.
-  useEffect(() => {
-    if (!isSpeechSynthesisSupported()) {
-      return undefined;
-    }
-
-    const loadPreferredVoice = () => {
-      preferredVoiceRef.current = selectPreferredKoreanVoice(
-        window.speechSynthesis.getVoices()
-      );
-    };
-
-    loadPreferredVoice();
-    window.speechSynthesis.addEventListener("voiceschanged", loadPreferredVoice);
-
-    return () => {
-      window.speechSynthesis.removeEventListener("voiceschanged", loadPreferredVoice);
-    };
-  }, []);
 
   // React 개발 모드에서 effect가 두 번 실행되어도 러닝 시작 요청은 한 번만 보낸다.
   useEffect(() => {
@@ -358,11 +295,9 @@ function LiveRun() {
   }, []);
 
   const stopCoachPlayback = useCallback(() => {
-    activeUtteranceRef.current = null;
-
-    if (isSpeechSynthesisSupported()) {
-      window.speechSynthesis.cancel();
-    }
+    const activeTtsRequest = activeCoachTtsRequestRef.current;
+    activeCoachTtsRequestRef.current = null;
+    activeTtsRequest?.abort();
 
     const activeAudio = activeCoachAudioRef.current;
     activeCoachAudioRef.current = null;
@@ -373,124 +308,109 @@ function LiveRun() {
       activeAudio.pause();
       activeAudio.currentTime = 0;
     }
+
+    const activeAudioUrl = activeCoachAudioUrlRef.current;
+    activeCoachAudioUrlRef.current = null;
+
+    if (activeAudioUrl) {
+      window.URL.revokeObjectURL(activeAudioUrl);
+    }
   }, []);
 
-  // 새 안내가 이전 안내를 계속 끊지 않도록 일반 안내는 재생 중일 때 건너뛴다.
-  // 코스 이탈과 종료처럼 중요한 안내만 interrupt 옵션으로 즉시 전달한다.
-  const speakCoachMessage = useCallback((message, {
+  // 모든 안내를 같은 Gemini 음성과 프롬프트로 생성한다.
+  const playDynamicCoachMessage = useCallback((message, {
     interrupt = false,
     onEnd,
   } = {}) => {
-    if (!message || !isSpeechSynthesisSupported()) {
-      return false;
-    }
-
-    const speechSynthesis = window.speechSynthesis;
-
-    if (interrupt) {
-      stopCoachPlayback();
-    } else if (
-      (activeCoachAudioRef.current && !activeCoachAudioRef.current.ended) ||
-      speechSynthesis.speaking ||
-      speechSynthesis.pending
-    ) {
-      return false;
-    }
-
-    const utterance = new window.SpeechSynthesisUtterance(message);
-    const koreanVoice = preferredVoiceRef.current ??
-      selectPreferredKoreanVoice(speechSynthesis.getVoices());
-
-    utterance.lang = "ko-KR";
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
-
-    if (koreanVoice) {
-      utterance.voice = koreanVoice;
-    }
-
-    // 일부 모바일 브라우저에서 객체가 일찍 정리되어 음성이 끊기는 것을 막는다.
-    activeUtteranceRef.current = utterance;
-    const handleSpeechEnd = () => {
-      if (activeUtteranceRef.current !== utterance) {
-        return;
-      }
-
-      activeUtteranceRef.current = null;
-      onEnd?.();
-    };
-    utterance.onend = handleSpeechEnd;
-    utterance.onerror = handleSpeechEnd;
-
-    speechSynthesis.resume();
-    speechSynthesis.speak(utterance);
-    setLastVoiceCoachMessage(message);
-
-    return true;
-  }, [stopCoachPlayback]);
-
-  // 고정 안내는 녹음된 MP3를 우선 사용하고, 재생이 막히면 기존 TTS로 안내한다.
-  const playCoachAudio = useCallback((audioConfig, {
-    interrupt = false,
-    onEnd,
-  } = {}) => {
-    if (!audioConfig?.fileName || !audioConfig.message) {
+    if (!message) {
       return false;
     }
 
     if (!isCoachAudioSupported()) {
-      return speakCoachMessage(audioConfig.message, { interrupt, onEnd });
+      return false;
     }
-
-    const speechSynthesis = isSpeechSynthesisSupported()
-      ? window.speechSynthesis
-      : null;
 
     if (interrupt) {
       stopCoachPlayback();
     } else if (
-      (activeCoachAudioRef.current && !activeCoachAudioRef.current.ended) ||
-      speechSynthesis?.speaking ||
-      speechSynthesis?.pending
+      activeCoachTtsRequestRef.current ||
+      (activeCoachAudioRef.current && !activeCoachAudioRef.current.ended)
     ) {
       return false;
     }
 
-    const audio = new window.Audio(
-      `${COACH_AUDIO_BASE_PATH}/${audioConfig.fileName}`
-    );
-    audio.preload = "auto";
-    activeCoachAudioRef.current = audio;
+    const requestController = new AbortController();
+    activeCoachTtsRequestRef.current = requestController;
+    setLastVoiceCoachMessage(message);
 
-    const handleAudioEnd = () => {
-      if (activeCoachAudioRef.current !== audio) {
-        return;
-      }
+    requestCoachSpeech(message, { signal: requestController.signal })
+      .then((audioBlob) => {
+        if (activeCoachTtsRequestRef.current !== requestController) {
+          return;
+        }
 
-      activeCoachAudioRef.current = null;
-      onEnd?.();
-    };
-    const handleAudioError = () => {
-      if (activeCoachAudioRef.current !== audio) {
-        return;
-      }
+        const audioUrl = window.URL.createObjectURL(audioBlob);
 
-      activeCoachAudioRef.current = null;
-      audio.onended = null;
-      audio.onerror = null;
+        const audio = new window.Audio(audioUrl);
+        audio.preload = "auto";
+        activeCoachTtsRequestRef.current = null;
+        activeCoachAudioRef.current = audio;
+        activeCoachAudioUrlRef.current = audioUrl;
 
-      if (!speakCoachMessage(audioConfig.message, { onEnd })) {
-        onEnd?.();
-      }
-    };
+        const releaseAudioUrl = () => {
+          if (activeCoachAudioUrlRef.current !== audioUrl) {
+            return;
+          }
 
-    audio.onended = handleAudioEnd;
-    audio.onerror = handleAudioError;
-    audio.play()?.catch(handleAudioError);
-    setLastVoiceCoachMessage(audioConfig.message);
+          activeCoachAudioUrlRef.current = null;
+          window.URL.revokeObjectURL(audioUrl);
+        };
+        const handleAudioEnd = () => {
+          if (activeCoachAudioRef.current !== audio) {
+            return;
+          }
+
+          activeCoachAudioRef.current = null;
+          audio.onended = null;
+          audio.onerror = null;
+          releaseAudioUrl();
+          onEnd?.();
+        };
+        const handleAudioError = () => {
+          if (activeCoachAudioRef.current !== audio) {
+            return;
+          }
+
+          activeCoachAudioRef.current = null;
+          audio.onended = null;
+          audio.onerror = null;
+          releaseAudioUrl();
+
+          setLastVoiceCoachMessage("실시간 음성을 재생하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        };
+
+        audio.onended = handleAudioEnd;
+        audio.onerror = handleAudioError;
+        audio.play()?.catch(handleAudioError);
+      })
+      .catch((error) => {
+        if (activeCoachTtsRequestRef.current !== requestController) {
+          return;
+        }
+
+        activeCoachTtsRequestRef.current = null;
+
+        if (error?.name === "AbortError") {
+          return;
+        }
+
+        console.error("Gemini 음성 코칭을 생성하지 못했습니다.", error);
+
+        setLastVoiceCoachMessage("실시간 음성을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      });
 
     return true;
-  }, [speakCoachMessage, stopCoachPlayback]);
+  }, [stopCoachPlayback]);
 
   // React 개발 모드의 effect 재실행을 피해 실제 러닝 시작 안내는 한 번만 재생한다.
   useEffect(() => {
@@ -503,11 +423,11 @@ function LiveRun() {
     }
 
     const timerId = setTimeout(() => {
-      const startAudio = selectedPacer && pacemakerProfile.mode !== "unavailable"
-        ? FIXED_COACH_AUDIO.startPacer
-        : FIXED_COACH_AUDIO.startFree;
+      const startMessage = selectedPacer && pacemakerProfile.mode !== "unavailable"
+        ? COACH_MESSAGES.startPacer
+        : COACH_MESSAGES.startFree;
 
-      if (playCoachAudio(startAudio, { interrupt: true })) {
+      if (playDynamicCoachMessage(startMessage, { interrupt: true })) {
         hasPlayedStartAudioRef.current = true;
       }
     }, 0);
@@ -518,7 +438,7 @@ function LiveRun() {
   }, [
     isRunning,
     pacemakerProfile.mode,
-    playCoachAudio,
+    playDynamicCoachMessage,
     selectedPacer,
     voiceCoachingEnabled,
   ]);
@@ -675,7 +595,7 @@ function LiveRun() {
           : pacemakerComparison,
     });
 
-    if (speakCoachMessage(message)) {
+    if (playDynamicCoachMessage(message)) {
       lastProgressIntervalRef.current = completedIntervals;
     }
   }, [
@@ -686,7 +606,7 @@ function LiveRun() {
     isRunning,
     isPaused,
     pacemakerComparison,
-    speakCoachMessage,
+    playDynamicCoachMessage,
     voiceCoachingEnabled,
   ]);
 
@@ -715,7 +635,7 @@ function LiveRun() {
           : pacemakerComparison,
     });
 
-    if (speakCoachMessage(message)) {
+    if (playDynamicCoachMessage(message)) {
       lastKilometerRef.current = completedKilometers;
     }
   }, [
@@ -725,7 +645,7 @@ function LiveRun() {
     isRunning,
     isPaused,
     pacemakerComparison,
-    speakCoachMessage,
+    playDynamicCoachMessage,
     voiceCoachingEnabled,
   ]);
 
@@ -763,8 +683,8 @@ function LiveRun() {
 
     const message = createComparisonCoachMessage(pacemakerComparison);
     const didAnnounce = nextComparisonState === "even"
-      ? playCoachAudio(FIXED_COACH_AUDIO.samePace)
-      : speakCoachMessage(message);
+      ? playDynamicCoachMessage(COACH_MESSAGES.samePace)
+      : playDynamicCoachMessage(message);
 
     if (didAnnounce) {
       comparisonStateRef.current = nextComparisonState;
@@ -775,8 +695,7 @@ function LiveRun() {
     isRunning,
     isPaused,
     pacemakerComparison,
-    playCoachAudio,
-    speakCoachMessage,
+    playDynamicCoachMessage,
     voiceCoachingEnabled,
   ]);
 
@@ -790,11 +709,11 @@ function LiveRun() {
       return;
     }
 
-    const audioConfig = isOffCourse
-      ? FIXED_COACH_AUDIO.offCourse
-      : FIXED_COACH_AUDIO.backOnCourse;
+    const message = isOffCourse
+      ? COACH_MESSAGES.offCourse
+      : COACH_MESSAGES.backOnCourse;
 
-    if (playCoachAudio(audioConfig, { interrupt: isOffCourse })) {
+    if (playDynamicCoachMessage(message, { interrupt: isOffCourse })) {
       offCourseStateRef.current = isOffCourse;
     }
   }, [
@@ -802,11 +721,11 @@ function LiveRun() {
     isOffCourse,
     isRunning,
     isPaused,
-    playCoachAudio,
+    playDynamicCoachMessage,
     voiceCoachingEnabled,
   ]);
 
-  // 정확도가 낮아졌다가 정상으로 돌아오는 순간에만 고정 음성을 한 번씩 재생한다.
+  // 정확도가 낮아졌다가 정상으로 돌아오는 순간에만 한 번씩 안내한다.
   useEffect(() => {
     if (!voiceCoachingEnabled || !isRunning || isPaused) {
       return;
@@ -817,14 +736,14 @@ function LiveRun() {
       gpsStatus.startsWith("GPS 위치가 불안정");
 
     if (isGpsUnstable && !gpsUnstableStateRef.current) {
-      if (playCoachAudio(FIXED_COACH_AUDIO.gpsUnstable)) {
+      if (playDynamicCoachMessage(COACH_MESSAGES.gpsUnstable)) {
         gpsUnstableStateRef.current = true;
       }
       return;
     }
 
     if (gpsStatus === "GPS 연결 성공" && gpsUnstableStateRef.current) {
-      if (playCoachAudio(FIXED_COACH_AUDIO.gpsRecovered)) {
+      if (playDynamicCoachMessage(COACH_MESSAGES.gpsRecovered)) {
         gpsUnstableStateRef.current = false;
       }
     }
@@ -832,7 +751,7 @@ function LiveRun() {
     gpsStatus,
     isPaused,
     isRunning,
-    playCoachAudio,
+    playDynamicCoachMessage,
     voiceCoachingEnabled,
   ]);
 
@@ -867,11 +786,11 @@ function LiveRun() {
     offCourseStateRef.current = isOffCourse;
 
     setVoiceCoachingEnabled(true);
-    const startAudio = selectedPacer && pacemakerProfile.mode !== "unavailable"
-      ? FIXED_COACH_AUDIO.startPacer
-      : FIXED_COACH_AUDIO.startFree;
+    const startMessage = selectedPacer && pacemakerProfile.mode !== "unavailable"
+      ? COACH_MESSAGES.startPacer
+      : COACH_MESSAGES.startFree;
     hasPlayedStartAudioRef.current = true;
-    playCoachAudio(startAudio, { interrupt: true });
+    playDynamicCoachMessage(startMessage, { interrupt: true });
   }
 
   function handleTestVoiceCoaching() {
@@ -885,10 +804,10 @@ function LiveRun() {
       comparison: isSamePace ? null : pacemakerComparison,
     });
     const playSamePaceAudio = isSamePace
-      ? () => playCoachAudio(FIXED_COACH_AUDIO.samePace)
+      ? () => playDynamicCoachMessage(COACH_MESSAGES.samePace)
       : undefined;
 
-    if (!speakCoachMessage(message, {
+    if (!playDynamicCoachMessage(message, {
       interrupt: true,
       onEnd: playSamePaceAudio,
     })) {
@@ -917,7 +836,7 @@ function LiveRun() {
     setGpsStatus("러닝 일시정지");
 
     if (voiceCoachingEnabled) {
-      playCoachAudio(FIXED_COACH_AUDIO.pause, { interrupt: true });
+      playDynamicCoachMessage(COACH_MESSAGES.pause, { interrupt: true });
     } else {
       stopCoachPlayback();
     }
@@ -942,7 +861,7 @@ function LiveRun() {
     setGpsStatus("GPS 연결 재개 중...");
 
     if (voiceCoachingEnabled) {
-      playCoachAudio(FIXED_COACH_AUDIO.resume, { interrupt: true });
+      playDynamicCoachMessage(COACH_MESSAGES.resume, { interrupt: true });
     }
   }
 
@@ -1014,23 +933,23 @@ function LiveRun() {
         setVoiceCoachingEnabled(false);
       };
       const playFinishOutro = () => {
-        if (!playCoachAudio(FIXED_COACH_AUDIO.finishOutro, {
+        if (!playDynamicCoachMessage(COACH_MESSAGES.finishOutro, {
           onEnd: finishVoiceCoaching,
         })) {
           finishVoiceCoaching();
         }
       };
-      const speakFinishResult = () => {
-        if (!speakCoachMessage(finishMessage, { onEnd: playFinishOutro })) {
+      const playFinishResult = () => {
+        if (!playDynamicCoachMessage(finishMessage, { onEnd: playFinishOutro })) {
           playFinishOutro();
         }
       };
 
-      if (!playCoachAudio(FIXED_COACH_AUDIO.finishIntro, {
+      if (!playDynamicCoachMessage(COACH_MESSAGES.finishIntro, {
         interrupt: true,
-        onEnd: speakFinishResult,
+        onEnd: playFinishResult,
       })) {
-        speakFinishResult();
+        playFinishResult();
       }
     }
 

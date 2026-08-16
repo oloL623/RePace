@@ -1,30 +1,7 @@
 const COMPARISON_TIME_THRESHOLD_SECONDS = 1;
-const NATURAL_KOREAN_VOICE_KEYWORDS = [
-  "natural",
-  "google",
-  "siri",
-  "yuna",
-  "sunhi",
-  "injun",
-  "heami",
-];
 
 function isFiniteNumber(value) {
   return Number.isFinite(value);
-}
-
-// 기기마다 음성 이름이 달라 자연음 계열을 우선 찾고, 없으면 첫 한국어 음성을 사용한다.
-export function selectPreferredKoreanVoice(voices = []) {
-  const koreanVoices = voices.filter((voice) =>
-    voice.lang?.toLowerCase().startsWith("ko")
-  );
-
-  return NATURAL_KOREAN_VOICE_KEYWORDS.reduce(
-    (selectedVoice, keyword) =>
-      selectedVoice ??
-      koreanVoices.find((voice) => voice.name.toLowerCase().includes(keyword)),
-    null
-  ) ?? koreanVoices[0] ?? null;
 }
 
 // TTS가 소수점을 어색하게 읽지 않도록 거리를 킬로미터와 미터 단위로 나눈다.
