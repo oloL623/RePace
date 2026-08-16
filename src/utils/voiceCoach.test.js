@@ -9,6 +9,7 @@ import {
   formatDurationForSpeech,
   formatPaceForSpeech,
   getTimeComparisonState,
+  selectPreferredKoreanVoice,
 } from "./voiceCoach.js";
 
 test("TTS용 거리와 시간을 자연스러운 단위로 변환한다", () => {
@@ -19,6 +20,19 @@ test("TTS용 거리와 시간을 자연스러운 단위로 변환한다", () => 
 test("소수 형태의 페이스를 분과 초로 변환한다", () => {
   assert.equal(formatPaceForSpeech(5.5), "5분 30초");
   assert.equal(formatPaceForSpeech(null), null);
+});
+
+test("기본 한국어 음성보다 기기의 자연음 계열을 우선 선택한다", () => {
+  const basicVoice = { name: "기본 한국어", lang: "ko-KR" };
+  const naturalVoice = {
+    name: "Microsoft SunHi Online (Natural)",
+    lang: "ko-KR",
+  };
+
+  assert.equal(
+    selectPreferredKoreanVoice([basicVoice, naturalVoice]),
+    naturalVoice
+  );
 });
 
 test("1초 범위를 기준으로 지난 기록과의 시간 상태를 구분한다", () => {

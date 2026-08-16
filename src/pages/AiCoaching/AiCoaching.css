@@ -1,0 +1,203 @@
+.ai-coaching-screen .app-content {
+  padding-bottom: 40px;
+}
+
+.ai-coaching-back {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink);
+  background: #fff;
+  font-size: 19px;
+  cursor: pointer;
+}
+
+.ai-coaching-kicker {
+  display: inline-flex;
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+}
+
+.ai-segment-card {
+  padding: 20px 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: #fff;
+}
+
+.ai-segment-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ai-segment-card__header h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.ai-segment-card__header > span {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--brand);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.ai-segment-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  min-height: 172px;
+  margin: 18px 0 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ai-segment-chart::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-segment-chart__item {
+  display: grid;
+  min-width: 48px;
+  flex: 1 0 48px;
+  justify-items: center;
+  gap: 7px;
+}
+
+.ai-segment-chart__item strong {
+  font-size: 10px;
+}
+
+.ai-segment-chart__item small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.ai-segment-chart__track {
+  display: flex;
+  width: 24px;
+  height: 104px;
+  align-items: flex-end;
+}
+
+.ai-segment-chart__track > span {
+  width: 100%;
+  min-height: 18px;
+  border-radius: 7px 7px 3px 3px;
+  background: var(--brand);
+}
+
+.ai-segment-chart__track > span.is-weakest {
+  background: var(--danger);
+}
+
+.ai-segment-warning {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  color: var(--danger);
+  background: #fff0f0;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ai-segment-card__empty {
+  margin: 20px 0 6px;
+  padding: 28px 12px;
+  border-radius: 14px;
+  color: var(--muted);
+  background: var(--surface-soft);
+  font-size: 12px;
+  text-align: center;
+}
+
+.ai-feedback-card {
+  margin-top: 16px;
+  padding: 20px;
+  border-radius: 22px;
+  color: #fff;
+  background: var(--brand);
+}
+
+.ai-feedback-card__header,
+.ai-feedback-card__header > div {
+  display: flex;
+  align-items: center;
+}
+
+.ai-feedback-card__header {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-feedback-card__header > div {
+  gap: 8px;
+}
+
+.ai-feedback-card__header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.ai-feedback-card__header > div > span {
+  font-size: 22px;
+}
+
+.ai-feedback-card__header > span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.ai-feedback-card > p {
+  margin: 14px 0;
+  font-size: 12px;
+  line-height: 1.65;
+  opacity: 0.92;
+}
+
+.ai-live-example {
+  padding: 15px;
+  border-radius: 14px;
+  color: var(--ink);
+  background: #fff;
+}
+
+.ai-live-example strong {
+  color: var(--brand-strong);
+  font-size: 10px;
+}
+
+.ai-live-example p {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.ai-feedback-error {
+  margin: 12px 0 0;
+  color: var(--danger);
+  font-size: 11px;
+  text-align: center;
+}
+
+.ai-coaching-empty {
+  margin-top: 32px;
+}

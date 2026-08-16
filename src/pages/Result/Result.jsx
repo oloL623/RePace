@@ -286,15 +286,27 @@ function Result() {
                         {comparison.headline} {comparison.label}
                       </p>
                     )}
-                    {selectedRecord.aiFeedback && (
-                      <div className="result-ai-card">
-                        <span aria-hidden="true">✦</span>
-                        <div>
-                          <strong>AI 페이스 코칭</strong>
-                          <p>{selectedRecord.aiFeedback}</p>
-                        </div>
+                    <button
+                      className={
+                        selectedRecord.serverRunId || selectedRecord.aiFeedback
+                          ? "result-ai-card"
+                          : "result-ai-card is-unavailable"
+                      }
+                      type="button"
+                      onClick={() => navigate(`/ai-coaching?record=${selectedRecord.id}`)}
+                    >
+                      <span aria-hidden="true">✦</span>
+                      <div>
+                        <strong>AI 페이스 코칭</strong>
+                        <p>
+                          {selectedRecord.aiFeedback ||
+                            (selectedRecord.serverRunId
+                              ? "구간별 페이스와 AI 코칭을 확인해 보세요."
+                              : "로컬 기록이에요. AI 코칭 이용 조건을 확인해 보세요.")}
+                        </p>
                       </div>
-                    )}
+                      <span className="result-ai-card__arrow" aria-hidden="true">›</span>
+                    </button>
                     <button
                       className="primary-button full-button"
                       type="button"

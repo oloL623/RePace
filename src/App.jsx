@@ -8,6 +8,7 @@ import RunReady from "./pages/RunReady/RunReady";
 import LiveRun from "./pages/LiveRun/LiveRun";
 import Result from "./pages/Result/Result";
 import SharedCourses from "./pages/SharedCourses/SharedCourses";
+import AiCoaching from "./pages/AiCoaching/AiCoaching";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/live-run" element={<LiveRun />} />
         <Route path="/result" element={<Result />} />
         <Route path="/shared-courses" element={<SharedCourses />} />
+        <Route path="/ai-coaching" element={<AiCoaching />} />
       </Routes>
     </BrowserRouter>
   );

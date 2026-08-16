@@ -102,12 +102,16 @@
 
 .result-ai-card {
   display: flex;
+  width: 100%;
+  align-items: flex-start;
   gap: 12px;
   margin-bottom: 14px;
   padding: 16px;
   border-radius: 18px;
   color: #fff;
   background: var(--brand);
+  text-align: left;
+  cursor: pointer;
 }
 
 .result-ai-card > span {
@@ -125,6 +129,22 @@
   font-size: 11px;
   line-height: 1.55;
   opacity: 0.9;
+}
+
+.result-ai-card > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.result-ai-card__arrow {
+  margin-left: auto;
+  font-size: 24px !important;
+  line-height: 1;
+}
+
+.result-ai-card.is-unavailable {
+  color: var(--brand-strong);
+  background: var(--brand-soft);
 }
 
 .result-list {
