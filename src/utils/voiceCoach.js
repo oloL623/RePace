@@ -1,7 +1,30 @@
 const COMPARISON_TIME_THRESHOLD_SECONDS = 1;
+const NATURAL_KOREAN_VOICE_KEYWORDS = [
+  "natural",
+  "google",
+  "siri",
+  "yuna",
+  "sunhi",
+  "injun",
+  "heami",
+];
 
 function isFiniteNumber(value) {
   return Number.isFinite(value);
+}
+
+// 기기마다 음성 이름이 달라 자연음 계열을 우선 찾고, 없으면 첫 한국어 음성을 사용한다.
+export function selectPreferredKoreanVoice(voices = []) {
+  const koreanVoices = voices.filter((voice) =>
+    voice.lang?.toLowerCase().startsWith("ko")
+  );
+
+  return NATURAL_KOREAN_VOICE_KEYWORDS.reduce(
+    (selectedVoice, keyword) =>
+      selectedVoice ??
+      koreanVoices.find((voice) => voice.name.toLowerCase().includes(keyword)),
+    null
+  ) ?? koreanVoices[0] ?? null;
 }
 
 // TTS가 소수점을 어색하게 읽지 않도록 거리를 킬로미터와 미터 단위로 나눈다.
@@ -92,14 +115,14 @@ export function createComparisonCoachMessage(comparison) {
   }
 
   if (state === "ahead") {
-    return `좋습니다. 같은 지점 기준, 지난번보다 ${formatDurationForSpeech(timeDifference)} 빠릅니다. 현재 페이스를 유지하면 지난 기록보다 빠르게 완주할 수 있습니다.`;
+    return `좋아요! 같은 지점에서 지난번보다 ${formatDurationForSpeech(timeDifference)} 빨라요. 지금 리듬 그대로 가면 지난 기록을 앞설 수 있어요.`;
   }
 
   if (state === "behind") {
-    return `같은 지점 기준, 지난번보다 ${formatDurationForSpeech(Math.abs(timeDifference))} 느립니다. 무리하게 속도를 올리지 말고, 호흡을 유지하면서 조금씩 페이스를 조절해 보세요.`;
+    return `같은 지점에서 지난번보다 ${formatDurationForSpeech(Math.abs(timeDifference))} 늦어요. 무리하지 말고, 호흡을 유지하면서 조금씩 속도를 올려 볼게요.`;
   }
 
-  return "같은 지점 기준, 지난번 기록과 1초 이내 차이입니다. 현재 페이스를 유지하세요.";
+  return "지난번과 거의 같은 페이스예요. 지금 리듬 그대로 유지해 볼게요.";
 }
 
 export function createProgressCoachMessage({
@@ -110,17 +133,16 @@ export function createProgressCoachMessage({
   comparison,
 }) {
   if (!isFiniteNumber(distance) || distance < 3) {
-    return `현재 경과 시간은 ${formatDurationForSpeech(elapsedSeconds)}입니다. 아직 이동 경로가 기록되지 않았습니다. GPS 상태를 확인해 주세요.`;
+    return `${formatDurationForSpeech(elapsedSeconds)} 동안 달리고 있어요. 아직 이동 경로가 잡히지 않았으니 GPS 상태를 확인해 주세요.`;
   }
 
   const pace = formatPaceForSpeech(currentPace ?? averagePace);
   const messages = [
-    `현재 경과 시간은 ${formatDurationForSpeech(elapsedSeconds)}입니다`,
-    `현재 이동 거리는 ${formatDistanceForSpeech(distance)}입니다`,
+    `지금까지 ${formatDurationForSpeech(elapsedSeconds)} 동안 ${formatDistanceForSpeech(distance)} 달렸어요`,
   ];
 
   if (pace) {
-    messages.push(`현재 페이스는 킬로미터당 ${pace}입니다`);
+    messages.push(`페이스는 킬로미터당 ${pace}예요`);
   }
 
   const comparisonMessage = createComparisonCoachMessage(comparison);
@@ -139,13 +161,13 @@ export function createKilometerCoachMessage({
   comparison,
 }) {
   const messages = [
-    `${completedKilometers} 킬로미터를 통과했습니다`,
-    `경과 시간은 ${formatDurationForSpeech(elapsedSeconds)}입니다`,
+    `${completedKilometers} 킬로미터 지점을 지났어요`,
+    `지금까지 ${formatDurationForSpeech(elapsedSeconds)} 달렸어요`,
   ];
   const pace = formatPaceForSpeech(averagePace);
 
   if (pace) {
-    messages.push(`평균 페이스는 킬로미터당 ${pace}입니다`);
+    messages.push(`평균 페이스는 킬로미터당 ${pace}예요`);
   }
 
   const comparisonMessage = createComparisonCoachMessage(comparison);
@@ -163,17 +185,13 @@ export function createFinishCoachMessage({
   averagePace,
 }) {
   const messages = [
-    "러닝을 종료합니다",
-    `총 거리는 ${formatDistanceForSpeech(distance)}입니다`,
-    `총 시간은 ${formatDurationForSpeech(elapsedSeconds)}입니다`,
+    `총 ${formatDistanceForSpeech(distance)}를 ${formatDurationForSpeech(elapsedSeconds)} 동안 달렸어요`,
   ];
   const pace = formatPaceForSpeech(averagePace);
 
   if (pace) {
-    messages.push(`평균 페이스는 킬로미터당 ${pace}입니다`);
+    messages.push(`평균 페이스는 킬로미터당 ${pace}예요`);
   }
-
-  messages.push("수고하셨습니다.");
 
   return messages.join(". ");
 }

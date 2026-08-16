@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageShell from "../../components/PageShell";
-import { loadRunPreferences, saveRunPreferences } from "../../utils/runPreferences";
+import {
+  DEFAULT_RUN_PREFERENCES,
+  isValidTargetDistanceInput,
+  loadRunPreferences,
+  parseTargetPaceMinutes,
+  saveRunPreferences,
+} from "../../utils/runPreferences";
 import "./RunReady.css";
 
 function loadSelectedPacer() {
@@ -20,16 +26,73 @@ function formatPace(pace) {
     return "-";
   }
 
-  const minutes = Math.floor(pace);
-  const seconds = Math.round((pace - minutes) * 60);
+  let minutes = Math.floor(pace);
+  let seconds = Math.round((pace - minutes) * 60);
 
-  return `${minutes}'${String(seconds).padStart(2, "0")}`;
+  if (seconds === 60) {
+    minutes += 1;
+    seconds = 0;
+  }
+
+  return `${minutes}'${String(seconds).padStart(2, "0")}''`;
+}
+
+function splitPace(pace) {
+  const safePace = Number.isFinite(pace)
+    ? pace
+    : DEFAULT_RUN_PREFERENCES.targetPaceMinutes;
+  let minutes = Math.floor(safePace);
+  let seconds = Math.round((safePace - minutes) * 60);
+
+  if (seconds === 60) {
+    minutes += 1;
+    seconds = 0;
+  }
+
+  return {
+    minutes: String(minutes),
+    seconds: String(seconds).padStart(2, "0"),
+  };
+}
+
+// 준비 화면에서도 오늘의 목표와 비교 기록을 바탕으로 바로 실행할 수 있는 조언을 보여준다.
+function createTodayStrategy({ targetDistanceKilometers, targetPaceMinutes, selectedPacer }) {
+  const targetPace = `${formatPace(targetPaceMinutes)}/km`;
+  const targetDistance = `${Number(targetDistanceKilometers.toFixed(2))}km`;
+
+  return [
+    `첫 5분은 목표 페이스 ${targetPace}보다 천천히 시작해 몸을 풀어보세요.`,
+    selectedPacer
+      ? `과거 기록의 ${formatPace(selectedPacer.pace)} 페이스를 기준으로 무리하지 않고 리듬을 맞춰보세요.`
+      : `${targetDistance}를 완주할 수 있도록 중간에도 대화가 가능한 호흡을 유지해보세요.`,
+    "마지막 구간에 힘이 남으면 보폭보다 팔치기를 먼저 가볍게 끌어올려 보세요.",
+  ];
 }
 
 function RunReady() {
   const navigate = useNavigate();
   const [selectedPacer, setSelectedPacer] = useState(loadSelectedPacer);
   const [preferences, setPreferences] = useState(loadRunPreferences);
+  const [targetDistanceInput, setTargetDistanceInput] = useState(
+    () => String(preferences.targetDistanceKilometers)
+  );
+  const [targetPaceInput, setTargetPaceInput] = useState(
+    () => splitPace(preferences.targetPaceMinutes)
+  );
+  const targetDistanceKilometers = Number(targetDistanceInput) || 0;
+  const parsedTargetPaceMinutes = parseTargetPaceMinutes(
+    targetPaceInput.minutes,
+    targetPaceInput.seconds
+  );
+  const canStartRunning =
+    targetDistanceKilometers > 0 && parsedTargetPaceMinutes !== null;
+  const todayStrategy = createTodayStrategy({
+    targetDistanceKilometers:
+      targetDistanceKilometers || DEFAULT_RUN_PREFERENCES.targetDistanceKilometers,
+    targetPaceMinutes:
+      parsedTargetPaceMinutes ?? DEFAULT_RUN_PREFERENCES.targetPaceMinutes,
+    selectedPacer,
+  });
 
   function updatePreference(name, value) {
     setPreferences((current) => ({ ...current, [name]: value }));
@@ -40,8 +103,36 @@ function RunReady() {
     setSelectedPacer(null);
   }
 
+  function handleDistanceChange(value) {
+    const nextValue = value.replace(",", ".");
+
+    if (isValidTargetDistanceInput(nextValue)) {
+      setTargetDistanceInput(nextValue);
+    }
+  }
+
+  function handlePacePartChange(name, value) {
+    if (!/^\d{0,2}$/.test(value)) {
+      return;
+    }
+
+    if (name === "seconds" && value !== "" && Number(value) > 59) {
+      return;
+    }
+
+    setTargetPaceInput((current) => ({ ...current, [name]: value }));
+  }
+
   function handleStartRunning() {
-    saveRunPreferences(preferences);
+    if (!canStartRunning) {
+      return;
+    }
+
+    saveRunPreferences({
+      ...preferences,
+      targetDistanceKilometers,
+      targetPaceMinutes: parsedTargetPaceMinutes,
+    });
     navigate("/live-run");
   }
 
@@ -56,39 +147,66 @@ function RunReady() {
           <span>목표 거리</span>
           <div>
             <input
-              type="number"
-              min="0.1"
-              step="0.1"
-              value={preferences.targetDistanceKilometers}
-              onChange={(event) =>
-                updatePreference(
-                  "targetDistanceKilometers",
-                  Math.max(0.1, Number(event.target.value) || 0.1)
-                )
-              }
+              type="text"
+              inputMode="decimal"
+              maxLength={5}
+              aria-label="목표 거리 킬로미터"
+              value={targetDistanceInput}
+              onChange={(event) => handleDistanceChange(event.target.value)}
             />
             <strong>km</strong>
           </div>
         </label>
         <label>
           <span>목표 페이스</span>
-          <div>
+          <div className="ready-pace-inputs">
             <input
-              type="number"
-              min="2"
-              max="20"
-              step="0.1"
-              value={preferences.targetPaceMinutes}
+              type="text"
+              inputMode="numeric"
+              maxLength={2}
+              aria-label="목표 페이스 분"
+              value={targetPaceInput.minutes}
               onChange={(event) =>
-                updatePreference(
-                  "targetPaceMinutes",
-                  Math.max(2, Number(event.target.value) || 2)
-                )
+                handlePacePartChange("minutes", event.target.value)
               }
             />
-            <strong>분/km</strong>
+            <strong>'</strong>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={2}
+              aria-label="목표 페이스 초"
+              value={targetPaceInput.seconds}
+              onChange={(event) =>
+                handlePacePartChange("seconds", event.target.value)
+              }
+              onBlur={() => {
+                if (targetPaceInput.seconds !== "") {
+                  handlePacePartChange(
+                    "seconds",
+                    String(Number(targetPaceInput.seconds)).padStart(2, "0")
+                  );
+                }
+              }}
+            />
+            <strong>''/km</strong>
           </div>
         </label>
+      </section>
+
+      <section className="ready-strategy-card" aria-labelledby="today-strategy-title">
+        <div>
+          <span>AI RUN PLAN</span>
+          <h2 id="today-strategy-title">오늘의 달리기 전략</h2>
+        </div>
+        <ol>
+          {todayStrategy.map((strategy, index) => (
+            <li key={strategy}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <p>{strategy}</p>
+            </li>
+          ))}
+        </ol>
       </section>
 
       <section className="ready-card">
@@ -134,7 +252,12 @@ function RunReady() {
         </label>
       </section>
 
-      <button className="primary-button full-button ready-start" type="button" onClick={handleStartRunning}>
+      <button
+        className="primary-button full-button ready-start"
+        type="button"
+        disabled={!canStartRunning}
+        onClick={handleStartRunning}
+      >
         달리기 시작
       </button>
     </PageShell>

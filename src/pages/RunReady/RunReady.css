@@ -14,7 +14,7 @@
   display: block;
   margin-bottom: 9px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -25,17 +25,83 @@
 }
 
 .ready-goals input {
-  width: 70px;
+  width: 90px;
   border: 0;
   color: var(--ink);
   background: transparent;
-  font-size: 24px;
+  font-size: 31px;
   font-weight: 900;
+}
+
+.ready-goals label:first-child input {
+  text-align: center;
+}
+
+.ready-goals .ready-pace-inputs {
+  gap: 2px;
+}
+
+.ready-pace-inputs input {
+  width: 44px;
+  text-align: center;
 }
 
 .ready-goals strong {
   color: var(--muted);
+  font-size: 13px;
+}
+
+.ready-strategy-card {
+  margin-top: 14px;
+  padding: 18px;
+  border-radius: 22px;
+  background: #f0fbf5;
+}
+
+.ready-strategy-card > div > span {
+  color: var(--brand-strong);
   font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.ready-strategy-card h2 {
+  margin: 4px 0 0;
+  font-size: 16px;
+}
+
+.ready-strategy-card ol {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ready-strategy-card li {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 9px;
+  align-items: flex-start;
+}
+
+.ready-strategy-card li > span {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--brand);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.ready-strategy-card p {
+  margin: 2px 0 0;
+  color: #35664e;
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 .ready-card {
