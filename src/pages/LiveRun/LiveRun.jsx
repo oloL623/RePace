@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import KakaoMap from "../../components/KakaoMap";
 import { isBackendConfigured } from "../../api/apiClient";
 import {
@@ -39,6 +40,7 @@ const MAX_GPS_ACCURACY_METERS = 1000;
 const MAX_RUNNING_SPEED_METERS_PER_SECOND = 12;
 const VOICE_PROGRESS_INTERVAL_SECONDS = 5 * 60;
 const COMPARISON_ANNOUNCEMENT_COOLDOWN_SECONDS = 60;
+
 
 function isSpeechSynthesisSupported() {
   return (
@@ -156,6 +158,7 @@ function LiveRun() {
     speed: null,
     accuracy: null,
   });
+  const navigate = useNavigate();
   const [distance, setDistance] = useState(0);
   const [averagePace, setAveragePace] = useState(null);
   const [gpsStatus, setGpsStatus] = useState(getInitialGpsStatus);
