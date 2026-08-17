@@ -2,12 +2,24 @@ const COMPARISON_TIME_THRESHOLD_SECONDS = 1;
 const NATURAL_KOREAN_VOICE_KEYWORDS = [
   "natural",
   "google",
-  "siri",
   "yuna",
   "sunhi",
   "injun",
   "heami",
 ];
+
+function getVoiceLabel(voice) {
+  return `${voice.name ?? ""} ${voice.voiceURI ?? ""}`.toLowerCase();
+}
+
+function findSiriVoice(voices, number) {
+  return voices.find((voice) => {
+    const label = getVoiceLabel(voice);
+
+    return label.includes("siri") &&
+      new RegExp(`(?:voice|음성)[\\s_-]*${number}(?:\\D|$)`).test(label);
+  });
+}
 
 function isFiniteNumber(value) {
   return Number.isFinite(value);
@@ -18,11 +30,14 @@ export function selectPreferredKoreanVoice(voices = []) {
   const koreanVoices = voices.filter((voice) =>
     voice.lang?.toLowerCase().startsWith("ko")
   );
+  const preferredSiriVoice = findSiriVoice(koreanVoices, 2) ??
+    findSiriVoice(koreanVoices, 1) ??
+    koreanVoices.find((voice) => getVoiceLabel(voice).includes("siri"));
 
-  return NATURAL_KOREAN_VOICE_KEYWORDS.reduce(
+  return preferredSiriVoice ?? NATURAL_KOREAN_VOICE_KEYWORDS.reduce(
     (selectedVoice, keyword) =>
       selectedVoice ??
-      koreanVoices.find((voice) => voice.name.toLowerCase().includes(keyword)),
+      koreanVoices.find((voice) => getVoiceLabel(voice).includes(keyword)),
     null
   ) ?? koreanVoices[0] ?? null;
 }

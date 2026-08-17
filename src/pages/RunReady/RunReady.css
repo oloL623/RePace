@@ -5,14 +5,15 @@
 }
 
 .ready-goals label {
-  padding: 15px;
+  min-width: 0;
+  padding: 16px 14px 18px;
   border-radius: 18px;
   background: var(--surface-soft);
 }
 
 .ready-goals label > span {
   display: block;
-  margin-bottom: 9px;
+  margin-bottom: 13px;
   color: var(--muted);
   font-size: 14px;
   font-weight: 700;
@@ -20,35 +21,59 @@
 
 .ready-goals label div {
   display: flex;
-  align-items: baseline;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
   gap: 5px;
 }
 
 .ready-goals input {
-  width: 90px;
   border: 0;
   color: var(--ink);
   background: transparent;
-  font-size: 31px;
+  font-size: 30px;
   font-weight: 900;
+  line-height: 1;
 }
 
-.ready-goals label:first-child input {
+.ready-distance-input input {
+  width: 92px;
   text-align: center;
 }
 
 .ready-goals .ready-pace-inputs {
+  display: grid;
+  grid-template-columns: 34px 8px 44px 34px;
+  align-items: center;
+  justify-content: center;
   gap: 2px;
 }
 
 .ready-pace-inputs input {
-  width: 44px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  line-height: 1;
   text-align: center;
 }
 
-.ready-goals strong {
+.ready-goal-unit,
+.ready-pace-mark {
   color: var(--muted);
-  font-size: 13px;
+  line-height: 1;
+}
+
+.ready-goal-unit {
+  align-self: end;
+  padding-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ready-pace-mark {
+  font-size: 16px;
+  text-align: center;
 }
 
 .ready-strategy-card {

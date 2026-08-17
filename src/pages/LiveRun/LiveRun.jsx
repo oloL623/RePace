@@ -289,7 +289,12 @@ function LiveRun() {
           return null;
         }
 
-        return startServerRun({ accessToken, courseId: null });
+        const selectedCourseId = Number(selectedPacer?.courseId);
+
+        return startServerRun({
+          accessToken,
+          courseId: Number.isInteger(selectedCourseId) ? selectedCourseId : null,
+        });
       })();
     }
 
@@ -315,7 +320,7 @@ function LiveRun() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [selectedPacer?.courseId]);
 
   const stopCoachPlayback = useCallback(() => {
     const activeUtterance = activeUtteranceRef.current;

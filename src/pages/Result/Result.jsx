@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageShell from "../../components/PageShell";
 import KakaoMap from "../../components/KakaoMap";
+import { createCourse } from "../../api/courses";
+import { isBackendConfigured } from "../../api/apiClient";
+import { getAccessToken, supabase } from "../../lib/supabase";
+import {
+  getEmailNickname,
+  saveSharedCourseMetadata,
+} from "../../utils/sharedCourses";
 import {
   formatStartLocation,
   UNKNOWN_START_LOCATION,
@@ -85,10 +92,13 @@ function getComparisonSummary(currentRecord, previousRecord) {
 
 function Result() {
   const navigate = useNavigate();
-  const [records] = useState(loadRunningRecords);
+  const [records, setRecords] = useState(loadRunningRecords);
   const [selectedRecordId, setSelectedRecordId] = useState(null);
   const [startLocations, setStartLocations] = useState({});
   const [visibleRecordCount, setVisibleRecordCount] = useState(10);
+  const [shareTarget, setShareTarget] = useState(null);
+  const [shareError, setShareError] = useState("");
+  const [isSharing, setIsSharing] = useState(false);
   const loadMoreRef = useRef(null);
 
   useEffect(() => {
@@ -199,6 +209,89 @@ function Result() {
     setSelectedRecordId((current) => (current === record.id ? null : record.id));
   }
 
+  function handleDeleteRecord(record) {
+    if (!window.confirm("이 기록을 삭제할까요?\n삭제한 기록은 복구할 수 없습니다.")) {
+      return;
+    }
+
+    const nextRecords = records.filter((savedRecord) => savedRecord.id !== record.id);
+    localStorage.setItem("runningRecords", JSON.stringify(nextRecords));
+
+    try {
+      const selectedPacer = JSON.parse(localStorage.getItem("selectedPacerRecord"));
+
+      if (selectedPacer?.id === record.id) {
+        localStorage.removeItem("selectedPacerRecord");
+      }
+    } catch {
+      localStorage.removeItem("selectedPacerRecord");
+    }
+
+    setRecords(nextRecords);
+    setSelectedRecordId(null);
+  }
+
+  async function handleConfirmShare() {
+    if (!shareTarget || isSharing) {
+      return;
+    }
+
+    const referencePath = (shareTarget.path ?? [])
+      .map((point) => [Number(point.latitude), Number(point.longitude)])
+      .filter(([latitude, longitude]) =>
+        Number.isFinite(latitude) && Number.isFinite(longitude)
+      );
+
+    if (referencePath.length < 2) {
+      setShareError("GPS 경로가 있는 기록만 코스로 공유할 수 있어요.");
+      return;
+    }
+
+    if (!isBackendConfigured || !supabase) {
+      setShareError("로그인과 백엔드 연결 후 코스를 공유할 수 있어요.");
+      return;
+    }
+
+    setIsSharing(true);
+    setShareError("");
+
+    try {
+      const accessToken = await getAccessToken();
+      const { data } = await supabase.auth.getSession();
+
+      if (!accessToken || !data.session?.user) {
+        throw new Error("로그인 후 코스를 공유해 주세요.");
+      }
+
+      const startLocation = startLocations[shareTarget.id];
+      const courseName =
+        startLocation &&
+        startLocation !== "확인 중" &&
+        startLocation !== UNKNOWN_START_LOCATION
+          ? `${startLocation} 코스`
+          : `${formatDate(shareTarget.startTime)} 러닝 코스`;
+      const course = await createCourse({
+        accessToken,
+        name: courseName,
+        referencePath,
+      });
+
+      saveSharedCourseMetadata(course.id, {
+        creatorName: getEmailNickname(data.session.user.email),
+        distance: shareTarget.distance,
+        elapsedTime: shareTarget.elapsedTime,
+        pace: shareTarget.pace,
+        sourceRecordId: shareTarget.id,
+      });
+      navigate(`/shared-courses?shared=${course.id}`);
+    } catch (error) {
+      console.error("코스를 공유하지 못했습니다.", error);
+      setShareError(error.message || "코스를 공유하지 못했습니다.");
+    } finally {
+      setIsSharing(false);
+    }
+  }
+
   return (
     <PageShell className="result-screen">
       <p className="page-kicker">MY RECORD</p>
@@ -257,9 +350,28 @@ function Result() {
                   <div className="result-detail__body">
                     <div className="result-detail__topline">
                       <span>{formatDate(selectedRecord.startTime)}</span>
-                      <span className={selectedRecord.serverSynced ? "is-synced" : ""}>
-                        {selectedRecord.serverSynced ? "서버 저장" : "로컬 기록"}
-                      </span>
+                      <div className="result-detail__top-actions">
+                        <span className={`result-detail__status${selectedRecord.serverSynced ? " is-synced" : ""}`}>
+                          {selectedRecord.serverSynced ? "서버 저장" : "로컬 기록"}
+                        </span>
+                        <button
+                          className="result-delete-button"
+                          type="button"
+                          onClick={() => handleDeleteRecord(selectedRecord)}
+                        >
+                          삭제하기
+                        </button>
+                        <button
+                          className="result-share-button"
+                          type="button"
+                          onClick={() => {
+                            setShareTarget(selectedRecord);
+                            setShareError("");
+                          }}
+                        >
+                          공유하기
+                        </button>
+                      </div>
                     </div>
                     <div className="result-detail__stats">
                       <div>
@@ -328,6 +440,40 @@ function Result() {
         })}
         <div ref={loadMoreRef} className="result-list__sentinel" aria-hidden="true" />
       </div>
+
+      {shareTarget && (
+        <div className="share-dialog-backdrop" role="presentation">
+          <section
+            className="share-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="share-dialog-title"
+          >
+            <span className="share-dialog__icon" aria-hidden="true">↗</span>
+            <h2 id="share-dialog-title">이 코스를 공유할까요?</h2>
+            <p>공유하면 다른 러너들이 이 경로를 보고 도전할 수 있어요.</p>
+            {shareError && <p className="share-dialog__error" role="alert">{shareError}</p>}
+            <div>
+              <button
+                className="ghost-button"
+                type="button"
+                disabled={isSharing}
+                onClick={() => setShareTarget(null)}
+              >
+                취소
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={isSharing}
+                onClick={handleConfirmShare}
+              >
+                {isSharing ? "공유 중..." : "확인"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </PageShell>
   );
 }

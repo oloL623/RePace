@@ -32,3 +32,17 @@ export async function getAccessToken() {
 
   return data.session?.access_token ?? null;
 }
+
+export async function refreshAccessToken() {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase.auth.refreshSession();
+
+  if (error) {
+    throw error;
+  }
+
+  return data.session?.access_token ?? null;
+}

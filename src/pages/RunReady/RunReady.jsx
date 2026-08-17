@@ -16,7 +16,7 @@ function loadSelectedPacer() {
 
     return saved ? JSON.parse(saved) : null;
   } catch (error) {
-    console.error("선택한 과거 기록을 불러오지 못했습니다.", error);
+    console.error("선택한 비교 기록을 불러오지 못했습니다.", error);
     return null;
   }
 }
@@ -63,7 +63,7 @@ function createTodayStrategy({ targetDistanceKilometers, targetPaceMinutes, sele
   return [
     `첫 5분은 목표 페이스 ${targetPace}보다 천천히 시작해 몸을 풀어보세요.`,
     selectedPacer
-      ? `과거 기록의 ${formatPace(selectedPacer.pace)} 페이스를 기준으로 무리하지 않고 리듬을 맞춰보세요.`
+      ? `${selectedPacer.isSharedCourse ? "공유 코스" : "과거 기록"}의 ${formatPace(selectedPacer.pace)} 페이스를 기준으로 무리하지 않고 리듬을 맞춰보세요.`
       : `${targetDistance}를 완주할 수 있도록 중간에도 대화가 가능한 호흡을 유지해보세요.`,
     "마지막 구간에 힘이 남으면 보폭보다 팔치기를 먼저 가볍게 끌어올려 보세요.",
   ];
@@ -100,6 +100,7 @@ function RunReady() {
 
   function handleRemovePacer() {
     localStorage.removeItem("selectedPacerRecord");
+    sessionStorage.removeItem("selectedSharedCourse");
     setSelectedPacer(null);
   }
 
@@ -145,7 +146,7 @@ function RunReady() {
       <section className="ready-goals" aria-label="러닝 목표 설정">
         <label>
           <span>목표 거리</span>
-          <div>
+          <div className="ready-distance-input">
             <input
               type="text"
               inputMode="decimal"
@@ -154,7 +155,7 @@ function RunReady() {
               value={targetDistanceInput}
               onChange={(event) => handleDistanceChange(event.target.value)}
             />
-            <strong>km</strong>
+            <span className="ready-goal-unit">km</span>
           </div>
         </label>
         <label>
@@ -170,7 +171,7 @@ function RunReady() {
                 handlePacePartChange("minutes", event.target.value)
               }
             />
-            <strong>'</strong>
+            <span className="ready-pace-mark" aria-hidden="true">′</span>
             <input
               type="text"
               inputMode="numeric"
@@ -189,7 +190,7 @@ function RunReady() {
                 }
               }}
             />
-            <strong>''/km</strong>
+            <span className="ready-goal-unit">″/km</span>
           </div>
         </label>
       </section>
@@ -212,8 +213,14 @@ function RunReady() {
       <section className="ready-card">
         <div className="ready-card__heading">
           <div>
-            <span>PACE MAKER</span>
-            <h2>{selectedPacer ? "과거의 나와 함께 달려요" : "새로운 기록을 만들어요"}</h2>
+            <span>{selectedPacer?.isSharedCourse ? "SHARED COURSE" : "PACE MAKER"}</span>
+            <h2>
+              {selectedPacer?.isSharedCourse
+                ? `${selectedPacer.title}에 도전해요`
+                : selectedPacer
+                  ? "과거의 나와 함께 달려요"
+                  : "새로운 기록을 만들어요"}
+            </h2>
           </div>
           <span className="ready-card__icon" aria-hidden="true">🐯</span>
         </div>
@@ -226,7 +233,7 @@ function RunReady() {
               <div><strong>{formatPace(selectedPacer.pace)}</strong><span>페이스</span></div>
             </div>
             <button className="ready-link-button" type="button" onClick={handleRemovePacer}>
-              과거 기록 비교 해제
+              {selectedPacer.isSharedCourse ? "공유 코스 선택 해제" : "과거 기록 비교 해제"}
             </button>
           </>
         ) : (

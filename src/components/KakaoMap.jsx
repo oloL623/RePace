@@ -3,7 +3,14 @@ import { useEffect, useRef, useState } from "react";
 const DEFAULT_LATITUDE = 37.5665;
 const DEFAULT_LONGITUDE = 126.978;
 
-function KakaoMap({ latitude, longitude, path, pastPath, fitPath = false }) {
+function KakaoMap({
+  latitude,
+  longitude,
+  path,
+  pastPath,
+  fitPath = false,
+  height = 260,
+}) {
   const mapRef = useRef(null);
 
   const mapInstance = useRef(null);
@@ -162,7 +169,7 @@ function KakaoMap({ latitude, longitude, path, pastPath, fitPath = false }) {
       ref={mapRef}
       style={{
         width: "100%",
-        height: "260px",
+        height: `${height}px`,
       }}
     />
   );

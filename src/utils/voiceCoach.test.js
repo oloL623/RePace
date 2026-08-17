@@ -35,6 +35,21 @@ test("기본 한국어 음성보다 기기의 자연음 계열을 우선 선택�
   );
 });
 
+test("iOS에서는 Siri 음성 2를 우선하고 없으면 Siri 음성 1을 선택한다", () => {
+  const rockoVoice = { name: "Rocko", lang: "ko-KR" };
+  const siriVoice1 = { name: "Siri Voice 1", lang: "ko-KR" };
+  const siriVoice2 = { name: "Siri 음성 2", lang: "ko-KR" };
+
+  assert.equal(
+    selectPreferredKoreanVoice([rockoVoice, siriVoice1, siriVoice2]),
+    siriVoice2
+  );
+  assert.equal(
+    selectPreferredKoreanVoice([rockoVoice, siriVoice1]),
+    siriVoice1
+  );
+});
+
 test("1초 범위를 기준으로 지난 기록과의 시간 상태를 구분한다", () => {
   assert.equal(getTimeComparisonState(5), "ahead");
   assert.equal(getTimeComparisonState(-5), "behind");

@@ -130,3 +130,63 @@
 .home-start-button {
   margin-top: 20px;
 }
+
+.home-goal-card,
+.home-past-card {
+  margin-top: -10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.home-goal-card > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.home-goal-card span {
+  color: var(--brand-strong);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.home-goal-card strong,
+.home-past-card strong {
+  font-size: 14px;
+}
+
+.home-goal-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.home-goal-options button {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  background: var(--surface-soft);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.home-goal-options button.is-selected {
+  border-color: var(--brand);
+  color: #fff;
+  background: var(--brand);
+}
+
+.home-past-card {
+  background: var(--brand-soft);
+}
+
+.home-past-card p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
