@@ -164,3 +164,14 @@
   margin-bottom: 18px;
   line-height: 1.65;
 }
+
+.result-courses-button {
+  margin-top: 20px;
+}
+.result-share-button { margin-top:12px; }
+.result-share-status { margin:9px 0 0; color:var(--brand-strong); font-size:11px; font-weight:700; text-align:center; }
+
+.result-complete { margin:20px 0 8px; color:var(--brand-strong); font-size:13px; font-weight:900; text-align:center; }.result-screen .page-title { white-space:pre-line; text-align:center; }.result-comparison { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:26px; padding:22px 20px !important; text-align:center; }.result-comparison div span,.result-comparison div strong { display:block; }.result-comparison div span { color:var(--muted); font-size:11px; }.result-comparison div strong { margin-top:12px; font-size:31px; letter-spacing:-.06em; }.result-comparison>b { grid-column:1 / -1; justify-self:center; margin-top:8px; padding:9px 15px; border-radius:999px; color:#fff; background:var(--brand); font-size:12px; white-space:nowrap; }.result-comparison>b.is-orange { background:#e49035; }
+.result-segment-card { margin-top:18px; padding:20px; border:1px solid var(--line); border-radius:22px; background:var(--surface-soft); }.result-segment-card h2 { margin:0; font-size:17px; }.result-segment-card p { margin:6px 0 14px; color:var(--muted); font-size:12px; }.result-segment-bars { display:flex; height:132px; align-items:flex-end; justify-content:space-around; border-bottom:1px solid #d7dfda; }.result-segment-bars>div { display:grid; height:100%; align-items:end; justify-items:center; }.result-segment-bars i { width:20px; border-radius:10px 10px 3px 3px; background:#58ad68; }.result-segment-bars .is-warning i { background:#df9636; }.result-segment-bars span { padding:10px 0 5px; color:var(--muted); font-size:10px; }.result-goal-button { display:block; width:100%; margin:20px 0 0; }.result-analysis-empty { margin:0; padding:20px 0 4px; color:var(--muted); font-size:12px; line-height:1.6; text-align:center; }
+
+

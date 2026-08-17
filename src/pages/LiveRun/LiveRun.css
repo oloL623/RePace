@@ -86,9 +86,19 @@
   border-radius: 50%;
   background: radial-gradient(circle, rgba(16, 126, 75, 0.45), rgba(7, 45, 28, 0.65));
   box-shadow: 0 0 55px rgba(8, 183, 107, 0.18);
-  font-size: 78px;
   animation: run-breathe 1.9s ease-in-out infinite;
 }
+
+.live-run-target { margin-bottom:18px; color:#b8c1bc; font-size:15px; font-weight:700; }
+
+.live-mascot img {
+  width: 132px;
+  height: 132px;
+  object-fit: contain;
+}
+
+.live-mascot { position:relative; overflow:hidden; }.live-mascot .live-past-mascot { position:absolute; z-index:0; opacity:.17; transform:translateX(-37px) scale(1.05); filter:grayscale(1); }.live-mascot img:not(.live-past-mascot) { position:relative; z-index:1; }.live-mascot--ahead { box-shadow:0 0 60px rgba(77,229,139,.3); }.live-mascot--behind { background:radial-gradient(circle,rgba(102,100,52,.42),rgba(50,37,20,.64)); }.live-mascot--paused { animation-duration:3.4s; }.live-state-description { margin:8px 0 0 !important; color:#bac1be !important; font-size:13px !important; }
+.live-mascot--paused img:not(.live-past-mascot) { width:94px; height:94px; }
 
 .live-mascot.is-paused { animation-duration: 3.4s; }
 
@@ -226,3 +236,5 @@
 @media (prefers-reduced-motion: reduce) {
   .live-mascot { animation: none; }
 }
+
+

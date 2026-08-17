@@ -33,6 +33,10 @@ import {
 import { createKilometerSplits } from "../../utils/runSplits";
 import { loadRunPreferences } from "../../utils/runPreferences";
 import { calculateActiveElapsedSeconds } from "../../utils/runTimer";
+import runningCat from "../../assets/runningcat.png";
+import slowCat from "../../assets/slowcat.png";
+import speedCat from "../../assets/speedcat.png";
+import restingCat from "../../assets/restingcat.png";
 import "./LiveRun.css";
 
 const MIN_MOVEMENT_METERS = 3;
@@ -124,6 +128,16 @@ function loadRunningRecords() {
   }
 }
 
+function loadSelectedCourse() {
+  try {
+    const saved = sessionStorage.getItem("selectedSharedCourse");
+    return saved ? JSON.parse(saved) : null;
+  } catch (error) {
+    console.error("선택한 공유 코스를 불러오지 못했습니다.", error);
+    return null;
+  }
+}
+
 function updateRunningRecord(recordId, changes) {
   const records = loadRunningRecords();
   const nextRecords = records.map((record) =>
@@ -161,8 +175,9 @@ function LiveRun() {
   const navigate = useNavigate();
   const [distance, setDistance] = useState(0);
   const [averagePace, setAveragePace] = useState(null);
-  const [gpsStatus, setGpsStatus] = useState(getInitialGpsStatus);
+  const [, setGpsStatus] = useState(getInitialGpsStatus);
   const [selectedPacer] = useState(loadSelectedPacer);
+  const [selectedCourse] = useState(loadSelectedCourse);
   const [runPreferences] = useState(loadRunPreferences);
   const [path, setPath] = useState([]);
   const [isRunning, setIsRunning] = useState(true);
@@ -253,7 +268,11 @@ function LiveRun() {
           return null;
         }
 
-        return startServerRun({ accessToken, courseId: null });
+        const serverCourseId = Number(selectedCourse?.serverCourseId);
+        return startServerRun({
+          accessToken,
+          courseId: Number.isInteger(serverCourseId) ? serverCourseId : null,
+        });
       })();
     }
 
@@ -279,7 +298,7 @@ function LiveRun() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [selectedCourse]);
 
   // 새 안내가 이전 안내를 계속 끊지 않도록 일반 안내는 재생 중일 때 건너뛴다.
   // 코스 이탈과 종료처럼 중요한 안내만 interrupt 옵션으로 즉시 전달한다.
@@ -771,6 +790,7 @@ function LiveRun() {
     // 서버 저장에 실패해도 위에서 저장한 localStorage 기록은 유지한다.
     if (!isBackendConfigured || !isSupabaseConfigured) {
       setServerStatus("로컬 기록 저장 완료");
+      navigate("/result");
       return;
     }
 
@@ -828,10 +848,12 @@ function LiveRun() {
       setServerStatus(`로컬 저장 완료 · 서버 저장 실패 (${error.message})`);
     } finally {
       setIsSavingToServer(false);
+      navigate("/result");
     }
   }
 
-  const goalDistanceMeters = runPreferences.targetDistanceKilometers * 1000;
+  const hasDistanceGoal = Number.isFinite(runPreferences.targetDistanceKilometers) && runPreferences.targetDistanceKilometers > 0;
+  const goalDistanceMeters = hasDistanceGoal ? runPreferences.targetDistanceKilometers * 1000 : 0;
   const goalProgress = goalDistanceMeters > 0
     ? Math.min(100, (distance / goalDistanceMeters) * 100)
     : 0;
@@ -844,6 +866,21 @@ function LiveRun() {
         : selectedPacer
           ? "과거의 나와 나란히 달리는 중"
           : "나만의 페이스로 달리는 중";
+  const runState = isPaused
+    ? "paused"
+    : pacemakerComparison?.timeDifference > 1
+      ? "ahead"
+      : pacemakerComparison?.timeDifference < -1
+        ? "behind"
+        : "even";
+  const stateDescription = runState === "ahead"
+    ? "지난 기록보다 더 빠르게 달리고 있어요"
+    : runState === "behind"
+      ? "지금보다 속도를 조금 더 내면 지난 기록을 깰 수 있어요."
+      : runState === "paused"
+        ? "잠시 쉬었다가 다시 뛰어봐요!"
+        : "지난 기록과 동일하게 달리고 있어요";
+  const mascotImage = runState === "ahead" ? speedCat : runState === "behind" ? slowCat : runState === "paused" ? restingCat : runningCat;
 
   return (
     <main className="live-screen">
@@ -855,22 +892,27 @@ function LiveRun() {
       </header>
 
       <section className="live-coach">
-        <p>{gpsStatus}</p>
-        <div className={`live-mascot ${isPaused ? "is-paused" : ""}`} aria-hidden="true">🐯</div>
+        <p>GPS 정상 · 음성 코치 {voiceCoachingEnabled ? "켜짐" : "꺼짐"}</p>
+        <span className="live-run-target">{runPreferences.targetDistanceKilometers}km {selectedPacer ? "이전 기록과 달리기" : "나만의 목표 달리기"}</span>
+        <div className={`live-mascot live-mascot--${runState}`} aria-hidden="true">
+          {selectedPacer && <img className="live-past-mascot" src={mascotImage} alt="" />}
+          <img src={mascotImage} alt="" />
+        </div>
         <h1>{coachHeadline}</h1>
+        <p className="live-state-description">{stateDescription}</p>
         {isOffCourse && <div className="live-warning">코스에서 벗어났어요. 지도를 확인하세요.</div>}
       </section>
 
       <section className="live-metrics" aria-label="실시간 러닝 정보">
-        <div><strong>{(distance / 1000).toFixed(2)}</strong><span>km</span><small>거리</small></div>
-        <div><strong>{formatElapsedTime(elapsedSeconds)}</strong><span /><small>시간</small></div>
-        <div><strong>{formatPace(currentPace).replace(" 분/km", "")}</strong><span>/km</span><small>현재 페이스</small></div>
+        <div><strong>{Math.round(distance).toLocaleString()}</strong><span>M</span><small>현재 거리</small></div>
+        <div><strong>{formatElapsedTime(elapsedSeconds).slice(3)}</strong><span /><small>경과 시간</small></div>
+        <div><strong>{formatPace(currentPace).replace(" 분/km", "")}</strong><span /><small>현재 페이스</small></div>
       </section>
 
       <section className="live-progress-card">
         <div>
           <span>오늘의 목표</span>
-          <strong>{runPreferences.targetDistanceKilometers} km · {runPreferences.targetPaceMinutes}분/km</strong>
+          <strong>{hasDistanceGoal ? `${runPreferences.targetDistanceKilometers} km` : "자유 달리기"}</strong>
         </div>
         <div className="live-progress-track"><span style={{ width: `${goalProgress}%` }} /></div>
         <small>{goalProgress.toFixed(0)}% 완료</small>
@@ -947,3 +989,4 @@ function LiveRun() {
 }
 
 export default LiveRun;
+

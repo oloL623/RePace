@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { path: "/run-ready", label: "달리기", icon: "▶" },
   { path: "/result", label: "내 기록", icon: "◴" },
   { path: "/shared-courses", label: "코스", icon: "⌘" },
+  { path: "/my-page", label: "마이페이지", icon: "♙" },
 ];
 
 function BottomNav() {
@@ -36,3 +37,5 @@ function BottomNav() {
 }
 
 export default BottomNav;
+
+

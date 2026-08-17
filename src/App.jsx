@@ -8,6 +8,9 @@ import RunReady from "./pages/RunReady/RunReady";
 import LiveRun from "./pages/LiveRun/LiveRun";
 import Result from "./pages/Result/Result";
 import SharedCourses from "./pages/SharedCourses/SharedCourses";
+import CourseMap from "./pages/CourseMap/CourseMap";
+import AiCoaching from "./pages/AiCoaching/AiCoaching";
+import MyPage from "./pages/MyPage/MyPage";
 
 function App() {
   return (
@@ -20,9 +23,14 @@ function App() {
         <Route path="/live-run" element={<LiveRun />} />
         <Route path="/result" element={<Result />} />
         <Route path="/shared-courses" element={<SharedCourses />} />
+        <Route path="/course-map" element={<CourseMap />} />
+        <Route path="/ai-coaching" element={<AiCoaching />} />
+        <Route path="/my-page" element={<MyPage />} />
       </Routes>
     </BrowserRouter>
   );
 }
 
 export default App;
+
+

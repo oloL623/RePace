@@ -1,12 +1,13 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import runningCat from "../../assets/runningcat.png";
 import "./Splash.css";
 
 function Splash() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const timerId = window.setTimeout(() => navigate("/login"), 1700);
+    const timerId = window.setTimeout(() => navigate("/home"), 1700);
 
     return () => window.clearTimeout(timerId);
   }, [navigate]);
@@ -14,8 +15,8 @@ function Splash() {
   return (
     <main
       className="splash-screen"
-      onClick={() => navigate("/login")}
-      aria-label="로그인 화면으로 이동"
+      onClick={() => navigate("/home")}
+      aria-label="홈 화면으로 이동"
     >
       <div className="splash-brand">
         <span className="brand-mark" aria-hidden="true">
@@ -25,7 +26,7 @@ function Splash() {
       </div>
 
       <div className="mascot mascot--splash" aria-hidden="true">
-        <span>🐯</span>
+        <img src={runningCat} alt="" />
       </div>
 
       <div className="splash-copy">
@@ -39,3 +40,5 @@ function Splash() {
 }
 
 export default Splash;
+
+

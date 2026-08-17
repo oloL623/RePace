@@ -23,3 +23,5 @@ export function loadRunPreferences() {
 export function saveRunPreferences(preferences) {
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
 }
+
+

@@ -1,0 +1,16 @@
+.course-map-screen { overflow: hidden; padding-bottom: 92px; background: #e9eef2; }
+.course-map-screen .app-content { padding: 0; }
+.course-map-art { position: relative; height: min(54vh, 490px); overflow: hidden; background: #e8eef4; }
+.course-map-art > div { height:100% !important; }
+.map-river { position: absolute; top: 31%; right: -5%; left: -5%; height: 27%; background: #d5e0eb; }
+.map-road { position: absolute; right: -15%; left: -15%; height: 8px; background: rgba(255,255,255,.85); transform: rotate(8deg); }
+.map-road--one { top: 13%; }.map-road--two { top: 79%; transform: rotate(5deg); }
+.course-line { position: absolute; top: 32%; left: 16%; width: 61%; height: 27%; border: 6px solid #5aaf6a; border-radius: 46% 39% 44% 38%; }
+.course-line::after { position: absolute; top: -32%; right: 15%; width: 66px; height: 54px; border: 6px solid #5aaf6a; border-radius: 50%; content: ""; }
+.course-pin,.course-current { position: absolute; display: grid; width: 26px; height: 26px; place-items: center; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 900; }
+.course-pin--start { top: 62%; left: 11%; background: #58ad68; }.course-pin--finish { top: 21%; right: 18%; background: #202228; }.course-current { top: 47%; left: 48%; width: 16px; height: 16px; border: 4px solid #fff; background: #58ad68; box-shadow: 0 0 0 7px rgba(255,255,255,.35); }
+.course-detail-card { position: relative; z-index: 1; margin-top: -26px; padding: 14px 24px 22px; border-radius: 28px 28px 0 0; background: #fff; }.course-detail-card__handle { width: 35px; height: 4px; margin: 0 0 20px; border-radius: 9px; background: #e4e6e7; }
+.course-detail-card__title { display: flex; justify-content: space-between; gap: 12px; }.course-detail-card h1 { margin: 0; font-size: 20px; letter-spacing: -.05em; }.course-detail-card__title p { margin: 13px 0 16px; font-size: 13px; font-weight: 800; }.course-detail-card__title small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; font-weight: 400; }.course-detail-card__title button { width: 36px; height: 36px; border-radius: 50%; background: var(--surface-soft); font-size: 20px; cursor: pointer; }
+.course-detail-stats { display: grid; grid-template-columns: repeat(3,1fr); margin-bottom: 16px; padding: 13px 6px; border-radius: 15px; background: var(--surface-soft); text-align: center; }.course-detail-stats span,.course-detail-stats strong { display: block; }.course-detail-stats span { margin-bottom: 4px; color: var(--muted); font-size: 10px; }.course-detail-stats strong { font-size: 13px; }.course-save-button { display: block; margin: 14px auto 0; color: var(--muted); background: transparent; font-size: 12px; text-decoration: underline; cursor: pointer; }
+
+

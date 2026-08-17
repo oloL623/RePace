@@ -5,6 +5,8 @@ import { getMyBestRun } from "../../api/runs";
 import { isBackendConfigured } from "../../api/apiClient";
 import { getAccessToken, isSupabaseConfigured, supabase } from "../../lib/supabase";
 import { normalizeServerRunRecord } from "../../utils/serverRunRecord";
+import { loadRunPreferences, saveRunPreferences } from "../../utils/runPreferences";
+import runningCat from "../../assets/runningcat.png";
 import "./Home.css";
 
 function loadRunningRecords() {
@@ -73,6 +75,8 @@ function Home() {
   const [records] = useState(loadRunningRecords);
   const [serverBestRecord, setServerBestRecord] = useState(null);
   const [serverMessage, setServerMessage] = useState("");
+  const [runMode, setRunMode] = useState("new");
+  const [targetDistance, setTargetDistance] = useState(5);
 
   const recentRecord = records.at(-1) ?? null;
   const localBestRecord = useMemo(
@@ -127,6 +131,15 @@ function Home() {
     navigate("/run-ready");
   }
 
+  function prepareNewRun() {
+    const currentPreferences = loadRunPreferences();
+    saveRunPreferences({
+      ...currentPreferences,
+      targetDistanceKilometers: targetDistance === "free" ? null : Number(targetDistance),
+    });
+    prepareRun();
+  }
+
   async function handleSignOut() {
     await supabase?.auth.signOut();
     navigate("/login");
@@ -148,17 +161,23 @@ function Home() {
         <h1 className="page-title">어떤 방식으로<br />달려볼까요?</h1>
 
         <div className="home-run-options">
-          <button className="is-active" type="button" onClick={() => prepareRun()}>
+          <button className={runMode === "new" ? "is-active" : ""} type="button" onClick={() => setRunMode("new")}>
             <span aria-hidden="true">▶</span>
             <strong>새로운 러닝</strong>
             <small>나만의 목표로 시작</small>
           </button>
-          <button type="button" onClick={() => navigate("/result")}>
+          <button className={runMode === "past" ? "is-active" : ""} type="button" onClick={() => setRunMode("past")}>
             <span aria-hidden="true">↻</span>
             <strong>과거의 나</strong>
             <small>이전 기록에 도전</small>
           </button>
         </div>
+        {runMode === "new" ? <section className="home-goal-card">
+          <div><span>오늘의 목표</span><strong>어느 정도 달려볼까요?</strong></div>
+          <div className="home-goal-options">
+            {[3, 5, 10, "free"].map((distance) => <button key={distance} className={targetDistance === distance ? "is-selected" : ""} type="button" onClick={() => setTargetDistance(distance)}>{distance === "free" ? "자유 달리기" : `${distance}km`}</button>)}
+          </div>
+        </section> : <section className="home-past-card"><strong>과거의 나에게 도전해 볼까요?</strong><p>저장된 러닝 기록을 고르면 그날의 페이스와 비교하며 달릴 수 있어요.</p></section>}
       </section>
 
       {featuredRecord ? (
@@ -170,7 +189,7 @@ function Home() {
         />
       ) : (
         <div className="home-first-run">
-          <span aria-hidden="true">🐯</span>
+          <img src={runningCat} alt="" aria-hidden="true" />
           <div>
             <strong>첫 러닝을 기다리고 있어요.</strong>
             <p>달리기를 마치면 나만의 페이스가 여기에 쌓입니다.</p>
@@ -189,11 +208,13 @@ function Home() {
 
       {serverMessage && <p className="status-message">{serverMessage}</p>}
 
-      <button className="primary-button full-button home-start-button" type="button" onClick={() => prepareRun()}>
-        달리기 준비하기
+      <button className="primary-button full-button home-start-button" type="button" onClick={runMode === "new" ? prepareNewRun : () => navigate("/my-page")}>
+        {runMode === "new" ? "목표 설정하고 달리기 준비" : "지난 기록 선택하기"}
       </button>
     </PageShell>
   );
 }
 
 export default Home;
+
+

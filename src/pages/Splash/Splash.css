@@ -29,7 +29,10 @@
   background: var(--brand-soft);
 }
 
-.mascot span {
+.mascot img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   filter: drop-shadow(0 12px 12px rgba(22, 74, 49, 0.16));
 }
 
@@ -40,8 +43,9 @@
   box-shadow: inset 0 0 0 18px rgba(255, 255, 255, 0.5);
 }
 
-.mascot--splash span {
-  font-size: 94px;
+.mascot--splash img {
+  width: 142px;
+  height: 142px;
 }
 
 .splash-copy p {
@@ -65,3 +69,5 @@
   color: #a0aaa5;
   font-size: 11px;
 }
+
+
