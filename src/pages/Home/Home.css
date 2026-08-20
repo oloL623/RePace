@@ -110,8 +110,10 @@
   background: var(--brand-soft);
 }
 
-.home-first-run > span {
-  font-size: 42px;
+.home-first-run > img {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
 }
 
 .home-first-run strong {

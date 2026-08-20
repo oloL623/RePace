@@ -3,9 +3,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { getCourses } from "../../api/courses";
 import { isBackendConfigured } from "../../api/apiClient";
 import { supabase } from "../../lib/supabase";
+import KakaoMap from "../../components/KakaoMap";
 import PageShell from "../../components/PageShell";
 import {
-  createRoutePreviewPoints,
   loadSharedCourseMetadata,
   normalizeSharedCourse,
   sortSharedCourses,
@@ -30,25 +30,6 @@ function formatTime(seconds) {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.round(seconds % 60);
   return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
-}
-
-function CourseRoutePreview({ path }) {
-  const points = createRoutePreviewPoints(path);
-  const coordinates = points.split(" ");
-  const [startX, startY] = (coordinates[0] ?? "").split(",");
-  const [finishX, finishY] = (coordinates.at(-1) ?? "").split(",");
-
-  return (
-    <svg viewBox="0 0 320 140" role="img" aria-label="공유 코스 경로 미리보기">
-      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
-      {points && (
-        <>
-          <circle cx={startX} cy={startY} r="10" className="shared-route-start" />
-          <circle cx={finishX} cy={finishY} r="10" className="shared-route-finish" />
-        </>
-      )}
-    </svg>
-  );
 }
 
 function SharedCourses() {
@@ -155,7 +136,18 @@ function SharedCourses() {
             key={course.id}
           >
             <div className="shared-course-list-card__preview">
-              <CourseRoutePreview path={course.path} />
+              {course.path[0] ? (
+                <KakaoMap
+                  latitude={course.path[0].latitude}
+                  longitude={course.path[0].longitude}
+                  path={course.path}
+                  fitPath
+                />
+              ) : (
+                <div className="shared-course-list-card__empty-map">
+                  표시할 GPS 경로가 없습니다.
+                </div>
+              )}
               {course.isMine && <span>내가 공유한 코스</span>}
             </div>
             <div className="shared-course-list-card__body">

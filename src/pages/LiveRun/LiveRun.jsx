@@ -18,6 +18,10 @@ import {
   isSupabaseConfigured,
 } from "../../lib/supabase";
 import {
+  isNativeBackgroundLocationAvailable,
+  startNativeBackgroundLocation,
+} from "../../lib/backgroundLocation";
+import {
   calculateDistanceMeters,
   calculatePacemakerComparison,
   calculateRollingPace,
@@ -34,6 +38,11 @@ import {
 import { createKilometerSplits } from "../../utils/runSplits";
 import { loadRunPreferences } from "../../utils/runPreferences";
 import { calculateActiveElapsedSeconds } from "../../utils/runTimer";
+import { getLiveMascotState } from "../../utils/liveMascot";
+import runningCat from "../../assets/runningcat.png";
+import restingCat from "../../assets/cat-resting.png";
+import sprintingCat from "../../assets/cat-sprinting.png";
+import tiredCat from "../../assets/cat-tired.png";
 import "./LiveRun.css";
 
 const MIN_MOVEMENT_METERS = 3;
@@ -196,7 +205,9 @@ function LiveRun() {
 
   const lastAcceptedPosition = useRef(null);
   const totalDistance = useRef(0);
+  const pathRef = useRef([]);
   const watchIdRef = useRef(null);
+  const nativeLocationSessionPromiseRef = useRef(null);
   const activeUtteranceRef = useRef(null);
   const preferredVoiceRef = useRef(null);
   const hasPlayedStartAudioRef = useRef(false);
@@ -207,6 +218,7 @@ function LiveRun() {
   const offCourseStateRef = useRef(false);
   const gpsUnstableStateRef = useRef(false);
   const runStartPromiseRef = useRef(null);
+  const wakeLockRef = useRef(null);
   const isPausedRef = useRef(false);
   const pausedAtRef = useRef(null);
   const totalPausedMillisecondsRef = useRef(0);
@@ -429,106 +441,220 @@ function LiveRun() {
 
   // GPS 정확도가 낮거나 순간이동으로 판단되는 좌표는 경로와 거리에 반영하지 않는다.
   useEffect(() => {
-    if (!navigator.geolocation) {
-      return;
+    const useNativeBackgroundLocation = isNativeBackgroundLocationAvailable();
+
+    if (
+      !isRunning ||
+      (!useNativeBackgroundLocation && !navigator.geolocation)
+    ) {
+      return undefined;
     }
 
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const timestamp = position.timestamp || Date.now();
+    const handlePosition = (position) => {
+      const timestamp = position.timestamp || Date.now();
 
-        // 일시정지 중 수신된 GPS 좌표와 이동거리는 러닝 기록에 포함하지 않는다.
-        if (isPausedRef.current) {
-          return;
-        }
-
-        const currentPosition = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          speed: position.coords.speed,
-          accuracy: position.coords.accuracy,
-          timestamp,
-        };
-
-        setLocation(currentPosition);
-
-        if (currentPosition.accuracy > MAX_GPS_ACCURACY_METERS) {
-          setGpsStatus(
-            `GPS 정확도 낮음 (±${currentPosition.accuracy.toFixed(0)}m)`
-          );
-          return;
-        }
-
-        setGpsStatus("GPS 연결 성공");
-
-        let nextDistance = totalDistance.current;
-        const previousPosition = lastAcceptedPosition.current;
-
-        if (previousPosition) {
-          const movedDistance = calculateDistanceMeters(
-            previousPosition,
-            currentPosition
-          );
-          const movedSeconds = Math.max(
-            0.001,
-            (timestamp - previousPosition.timestamp) / 1000
-          );
-          const measuredSpeed = movedDistance / movedSeconds;
-
-          // 짧은 이동은 마지막 승인 위치를 유지해 다음 좌표와 합산되도록 한다.
-          if (movedDistance < MIN_MOVEMENT_METERS) {
-            return;
-          }
-
-          // 사람의 러닝 속도를 벗어난 순간이동은 GPS 튐으로 간주한다.
-          if (measuredSpeed > MAX_RUNNING_SPEED_METERS_PER_SECOND) {
-            setGpsStatus("GPS 위치가 불안정해 이동값을 제외했습니다.");
-            return;
-          }
-
-          nextDistance += movedDistance;
-        }
-
-        const pointElapsedSeconds = calculateActiveElapsedSeconds({
-          startTime,
-          currentTime: timestamp,
-          totalPausedMilliseconds: totalPausedMillisecondsRef.current,
-        });
-        const pathPoint = {
-          latitude: currentPosition.latitude,
-          longitude: currentPosition.longitude,
-          timestamp,
-          elapsedSeconds: pointElapsedSeconds,
-          cumulativeDistance: nextDistance,
-          accuracy: currentPosition.accuracy,
-        };
-
-        lastAcceptedPosition.current = currentPosition;
-        totalDistance.current = nextDistance;
-        setPath((previousPath) => [...previousPath, pathPoint]);
-        setDistance(nextDistance);
-        setAveragePace(
-          calculateAveragePace(nextDistance, pointElapsedSeconds)
-        );
-      },
-      (error) => {
-        setGpsStatus(
-          `GPS 오류 (${error.code}) : ${getGpsErrorMessage(error)}`
-        );
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 10000,
+      // 일시정지 중 수신된 GPS 좌표와 이동거리는 러닝 기록에 포함하지 않는다.
+      if (isPausedRef.current) {
+        return;
       }
-    );
 
-    watchIdRef.current = watchId;
+      const currentPosition = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        speed: position.coords.speed,
+        accuracy: position.coords.accuracy,
+        timestamp,
+      };
+
+      setLocation(currentPosition);
+
+      if (currentPosition.accuracy > MAX_GPS_ACCURACY_METERS) {
+        setGpsStatus(
+          `GPS 정확도 낮음 (±${currentPosition.accuracy.toFixed(0)}m)`
+        );
+        return;
+      }
+
+      setGpsStatus("GPS 연결 성공");
+
+      let nextDistance = totalDistance.current;
+      const previousPosition = lastAcceptedPosition.current;
+
+      if (previousPosition) {
+        const movedDistance = calculateDistanceMeters(
+          previousPosition,
+          currentPosition
+        );
+        const movedSeconds = Math.max(
+          0.001,
+          (timestamp - previousPosition.timestamp) / 1000
+        );
+        const measuredSpeed = movedDistance / movedSeconds;
+
+        // 짧은 이동은 마지막 승인 위치를 유지해 다음 좌표와 합산되도록 한다.
+        if (movedDistance < MIN_MOVEMENT_METERS) {
+          return;
+        }
+
+        // 사람의 러닝 속도를 벗어난 순간이동은 GPS 튐으로 간주한다.
+        if (measuredSpeed > MAX_RUNNING_SPEED_METERS_PER_SECOND) {
+          setGpsStatus("GPS 위치가 불안정해 이동값을 제외했습니다.");
+          return;
+        }
+
+        nextDistance += movedDistance;
+      }
+
+      const pointElapsedSeconds = calculateActiveElapsedSeconds({
+        startTime,
+        currentTime: timestamp,
+        totalPausedMilliseconds: totalPausedMillisecondsRef.current,
+      });
+      const pathPoint = {
+        latitude: currentPosition.latitude,
+        longitude: currentPosition.longitude,
+        timestamp,
+        elapsedSeconds: pointElapsedSeconds,
+        cumulativeDistance: nextDistance,
+        accuracy: currentPosition.accuracy,
+      };
+
+      lastAcceptedPosition.current = currentPosition;
+      totalDistance.current = nextDistance;
+      pathRef.current = [...pathRef.current, pathPoint];
+      setPath(pathRef.current);
+      setDistance(nextDistance);
+      setAveragePace(
+        calculateAveragePace(nextDistance, pointElapsedSeconds)
+      );
+    };
+    const handlePositionError = (error) => {
+      setGpsStatus(
+        `GPS 오류 (${error.code ?? "native"}) : ${getGpsErrorMessage(error)}`
+      );
+    };
+    const watchOptions = {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 10000,
+    };
+
+    const startWatching = () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        handlePosition,
+        handlePositionError,
+        watchOptions
+      );
+    };
+
+    const restartWatchingWhenVisible = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      if (!isPausedRef.current) {
+        setGpsStatus("GPS 연결 재개 중...");
+      }
+
+      if (useNativeBackgroundLocation) {
+        nativeLocationSessionPromiseRef.current
+          ?.then((session) => session.sync())
+          .catch(handlePositionError);
+      } else {
+        startWatching();
+      }
+    };
+
+    if (useNativeBackgroundLocation) {
+      nativeLocationSessionPromiseRef.current = startNativeBackgroundLocation({
+        onPosition: handlePosition,
+        onError: handlePositionError,
+      });
+      nativeLocationSessionPromiseRef.current.catch((error) => {
+        console.error("네이티브 백그라운드 위치를 시작하지 못했습니다.", error);
+      });
+    } else {
+      startWatching();
+    }
+
+    document.addEventListener("visibilitychange", restartWatchingWhenVisible);
+    window.addEventListener("pageshow", restartWatchingWhenVisible);
 
     return () => {
-      navigator.geolocation.clearWatch(watchId);
+      document.removeEventListener("visibilitychange", restartWatchingWhenVisible);
+      window.removeEventListener("pageshow", restartWatchingWhenVisible);
+
+      const nativeSessionPromise = nativeLocationSessionPromiseRef.current;
+      nativeLocationSessionPromiseRef.current = null;
+      nativeSessionPromise
+        ?.then((session) => session.stop())
+        .catch(() => {});
+
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
     };
-  }, [startTime]);
+  }, [isRunning, startTime]);
+
+  // 지원되는 모바일 브라우저에서는 러닝 중 화면이 자동으로 꺼지지 않게 한다.
+  useEffect(() => {
+    if (!isRunning || isPaused || !navigator.wakeLock) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    const requestWakeLock = async () => {
+      if (
+        isCancelled ||
+        document.visibilityState !== "visible" ||
+        wakeLockRef.current
+      ) {
+        return;
+      }
+
+      try {
+        const wakeLock = await navigator.wakeLock.request("screen");
+
+        if (isCancelled) {
+          await wakeLock.release();
+          return;
+        }
+
+        wakeLockRef.current = wakeLock;
+        wakeLock.addEventListener("release", () => {
+          if (wakeLockRef.current === wakeLock) {
+            wakeLockRef.current = null;
+          }
+        });
+      } catch (error) {
+        console.info("화면 켜짐 유지를 사용할 수 없습니다.", error);
+      }
+    };
+
+    const requestWakeLockWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        requestWakeLock();
+      }
+    };
+
+    requestWakeLock();
+    document.addEventListener("visibilitychange", requestWakeLockWhenVisible);
+
+    return () => {
+      isCancelled = true;
+      document.removeEventListener("visibilitychange", requestWakeLockWhenVisible);
+
+      const wakeLock = wakeLockRef.current;
+      wakeLockRef.current = null;
+      wakeLock?.release().catch(() => {});
+    };
+  }, [isPaused, isRunning]);
 
   // interval은 화면 갱신 신호로만 사용하고 실제 시간은 시작 시각과의 차이로 계산한다.
   useEffect(() => {
@@ -818,6 +944,9 @@ function LiveRun() {
     );
     setIsPaused(true);
     setGpsStatus("러닝 일시정지");
+    nativeLocationSessionPromiseRef.current
+      ?.then((session) => session.pause())
+      .catch(console.error);
 
     if (voiceCoachingEnabled) {
       playDynamicCoachMessage(COACH_MESSAGES.pause, { interrupt: true });
@@ -843,6 +972,9 @@ function LiveRun() {
     lastAcceptedPosition.current = null;
     setIsPaused(false);
     setGpsStatus("GPS 연결 재개 중...");
+    nativeLocationSessionPromiseRef.current
+      ?.then((session) => session.resume())
+      .catch(console.error);
 
     if (voiceCoachingEnabled) {
       playDynamicCoachMessage(COACH_MESSAGES.resume, { interrupt: true });
@@ -852,6 +984,18 @@ function LiveRun() {
   async function handleStopRunning() {
     if (!isRunning) {
       return;
+    }
+
+    const nativeSessionPromise = nativeLocationSessionPromiseRef.current;
+    nativeLocationSessionPromiseRef.current = null;
+
+    if (nativeSessionPromise) {
+      try {
+        const nativeSession = await nativeSessionPromise;
+        await nativeSession.stop();
+      } catch (error) {
+        console.error("네이티브 위치 기록을 종료하지 못했습니다.", error);
+      }
     }
 
     if (watchIdRef.current !== null) {
@@ -870,17 +1014,18 @@ function LiveRun() {
       totalDistance.current,
       finalElapsedSeconds
     );
-    const lastPoint = path.at(-1);
+    const currentPath = pathRef.current;
+    const lastPoint = currentPath.at(-1);
     const recordedPath = lastPoint
       ? [
-          ...path,
+          ...currentPath,
           {
             ...lastPoint,
             timestamp: endTime,
             elapsedSeconds: finalElapsedSeconds,
           },
         ]
-      : path;
+      : currentPath;
     const runRecord = {
       recordVersion: 2,
       id: Date.now(),
@@ -1013,6 +1158,16 @@ function LiveRun() {
         : selectedPacer
           ? "과거의 나와 나란히 달리는 중"
           : "나만의 페이스로 달리는 중";
+  const mascotState = getLiveMascotState({
+    isPaused,
+    timeDifference: pacemakerComparison?.timeDifference,
+  });
+  const mascotSource = {
+    resting: restingCat,
+    ahead: sprintingCat,
+    tired: tiredCat,
+    steady: runningCat,
+  }[mascotState];
 
   return (
     <main className="live-screen">
@@ -1025,7 +1180,12 @@ function LiveRun() {
 
       <section className="live-coach">
         <p>{gpsStatus}</p>
-        <div className={`live-mascot ${isPaused ? "is-paused" : ""}`} aria-hidden="true">🐯</div>
+        <div className={`live-mascot is-${mascotState}`} aria-hidden="true">
+          {selectedPacer && mascotState === "ahead" && (
+            <img className="live-mascot__ghost" src={mascotSource} alt="" />
+          )}
+          <img className="live-mascot__current" src={mascotSource} alt="" />
+        </div>
         <h1>{coachHeadline}</h1>
         {isOffCourse && <div className="live-warning">코스에서 벗어났어요. 지도를 확인하세요.</div>}
       </section>

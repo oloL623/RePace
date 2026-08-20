@@ -100,36 +100,3 @@ export function sortSharedCourses(
     );
   });
 }
-
-export function createRoutePreviewPoints(
-  path,
-  { width = 320, height = 140, padding = 18 } = {}
-) {
-  if (!Array.isArray(path) || path.length === 0) {
-    return "";
-  }
-
-  const longitudes = path.map((point) => point.longitude);
-  const latitudes = path.map((point) => point.latitude);
-  const minimumLongitude = Math.min(...longitudes);
-  const maximumLongitude = Math.max(...longitudes);
-  const minimumLatitude = Math.min(...latitudes);
-  const maximumLatitude = Math.max(...latitudes);
-  const longitudeRange = maximumLongitude - minimumLongitude || 1;
-  const latitudeRange = maximumLatitude - minimumLatitude || 1;
-
-  return path
-    .map((point) => {
-      const x =
-        padding +
-        ((point.longitude - minimumLongitude) / longitudeRange) *
-          (width - padding * 2);
-      const y =
-        padding +
-        ((maximumLatitude - point.latitude) / latitudeRange) *
-          (height - padding * 2);
-
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-}

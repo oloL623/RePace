@@ -1,14 +1,96 @@
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import sprintingCat from "../../assets/cat-sprinting.png";
 import PageShell from "../../components/PageShell";
 import {
   DEFAULT_RUN_PREFERENCES,
-  isValidTargetDistanceInput,
   loadRunPreferences,
   parseTargetPaceMinutes,
   saveRunPreferences,
 } from "../../utils/runPreferences";
 import "./RunReady.css";
+
+const DISTANCE_INTEGER_OPTIONS = Array.from({ length: 51 }, (_, index) => String(index));
+const DISTANCE_DECIMAL_OPTIONS = Array.from(
+  { length: 100 },
+  (_, index) => String(index).padStart(2, "0")
+);
+const PACE_MINUTE_OPTIONS = Array.from({ length: 20 }, (_, index) => String(index + 1));
+const PACE_SECOND_OPTIONS = Array.from(
+  { length: 6 },
+  (_, index) => String(index * 10).padStart(2, "0")
+);
+
+function NumberWheel({ label, options, value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const listId = useId();
+  const menuRef = useRef(null);
+  const selectedRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen || !menuRef.current || !selectedRef.current) {
+      return;
+    }
+
+    menuRef.current.scrollTop =
+      selectedRef.current.offsetTop -
+      (menuRef.current.clientHeight - selectedRef.current.offsetHeight) / 2;
+  }, [isOpen, value]);
+
+  return (
+    <div
+      className="ready-number-wheel"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setIsOpen(false);
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          setIsOpen(false);
+        }
+      }}
+    >
+      <button
+        className="ready-number-wheel__trigger"
+        type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls={listId}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        {value}
+      </button>
+      {isOpen && (
+        <div
+          ref={menuRef}
+          className="ready-number-wheel__menu"
+          id={listId}
+          role="listbox"
+          aria-label={label}
+        >
+          {options.map((option) => (
+            <button
+              ref={option === value ? selectedRef : null}
+              className="ready-number-wheel__option"
+              type="button"
+              role="option"
+              aria-selected={option === value}
+              key={option}
+              onClick={() => {
+                onChange(option);
+                setIsOpen(false);
+              }}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function loadSelectedPacer() {
   try {
@@ -39,10 +121,10 @@ function formatPace(pace) {
 
 function splitPace(pace) {
   const safePace = Number.isFinite(pace)
-    ? pace
+    ? Math.min(20 + 50 / 60, Math.max(1, pace))
     : DEFAULT_RUN_PREFERENCES.targetPaceMinutes;
   let minutes = Math.floor(safePace);
-  let seconds = Math.round((safePace - minutes) * 60);
+  let seconds = Math.round(((safePace - minutes) * 60) / 10) * 10;
 
   if (seconds === 60) {
     minutes += 1;
@@ -53,6 +135,15 @@ function splitPace(pace) {
     minutes: String(minutes),
     seconds: String(seconds).padStart(2, "0"),
   };
+}
+
+function splitDistance(distance) {
+  const safeDistance = Number.isFinite(distance)
+    ? Math.min(50.99, Math.max(0, Math.round(distance * 100) / 100))
+    : DEFAULT_RUN_PREFERENCES.targetDistanceKilometers;
+  const [integer, decimal] = safeDistance.toFixed(2).split(".");
+
+  return { integer, decimal };
 }
 
 // 준비 화면에서도 오늘의 목표와 비교 기록을 바탕으로 바로 실행할 수 있는 조언을 보여준다.
@@ -74,12 +165,13 @@ function RunReady() {
   const [selectedPacer, setSelectedPacer] = useState(loadSelectedPacer);
   const [preferences, setPreferences] = useState(loadRunPreferences);
   const [targetDistanceInput, setTargetDistanceInput] = useState(
-    () => String(preferences.targetDistanceKilometers)
+    () => splitDistance(preferences.targetDistanceKilometers)
   );
   const [targetPaceInput, setTargetPaceInput] = useState(
     () => splitPace(preferences.targetPaceMinutes)
   );
-  const targetDistanceKilometers = Number(targetDistanceInput) || 0;
+  const combinedTargetDistance = `${targetDistanceInput.integer}.${targetDistanceInput.decimal}`;
+  const targetDistanceKilometers = Number(combinedTargetDistance);
   const parsedTargetPaceMinutes = parseTargetPaceMinutes(
     targetPaceInput.minutes,
     targetPaceInput.seconds
@@ -102,26 +194,6 @@ function RunReady() {
     localStorage.removeItem("selectedPacerRecord");
     sessionStorage.removeItem("selectedSharedCourse");
     setSelectedPacer(null);
-  }
-
-  function handleDistanceChange(value) {
-    const nextValue = value.replace(",", ".");
-
-    if (isValidTargetDistanceInput(nextValue)) {
-      setTargetDistanceInput(nextValue);
-    }
-  }
-
-  function handlePacePartChange(name, value) {
-    if (!/^\d{0,2}$/.test(value)) {
-      return;
-    }
-
-    if (name === "seconds" && value !== "" && Number(value) > 59) {
-      return;
-    }
-
-    setTargetPaceInput((current) => ({ ...current, [name]: value }));
   }
 
   function handleStartRunning() {
@@ -147,13 +219,28 @@ function RunReady() {
         <label>
           <span>목표 거리</span>
           <div className="ready-distance-input">
-            <input
-              type="text"
-              inputMode="decimal"
-              maxLength={5}
-              aria-label="목표 거리 킬로미터"
-              value={targetDistanceInput}
-              onChange={(event) => handleDistanceChange(event.target.value)}
+            <NumberWheel
+              label="목표 거리 정수"
+              options={DISTANCE_INTEGER_OPTIONS}
+              value={targetDistanceInput.integer}
+              onChange={(integer) =>
+                setTargetDistanceInput((current) => ({
+                  ...current,
+                  integer,
+                }))
+              }
+            />
+            <span className="ready-distance-mark" aria-hidden="true">.</span>
+            <NumberWheel
+              label="목표 거리 소수"
+              options={DISTANCE_DECIMAL_OPTIONS}
+              value={targetDistanceInput.decimal}
+              onChange={(decimal) =>
+                setTargetDistanceInput((current) => ({
+                  ...current,
+                  decimal,
+                }))
+              }
             />
             <span className="ready-goal-unit">km</span>
           </div>
@@ -161,34 +248,28 @@ function RunReady() {
         <label>
           <span>목표 페이스</span>
           <div className="ready-pace-inputs">
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={2}
-              aria-label="목표 페이스 분"
+            <NumberWheel
+              label="목표 페이스 분"
+              options={PACE_MINUTE_OPTIONS}
               value={targetPaceInput.minutes}
-              onChange={(event) =>
-                handlePacePartChange("minutes", event.target.value)
+              onChange={(minutes) =>
+                setTargetPaceInput((current) => ({
+                  ...current,
+                  minutes,
+                }))
               }
             />
             <span className="ready-pace-mark" aria-hidden="true">′</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={2}
-              aria-label="목표 페이스 초"
+            <NumberWheel
+              label="목표 페이스 초"
+              options={PACE_SECOND_OPTIONS}
               value={targetPaceInput.seconds}
-              onChange={(event) =>
-                handlePacePartChange("seconds", event.target.value)
+              onChange={(seconds) =>
+                setTargetPaceInput((current) => ({
+                  ...current,
+                  seconds,
+                }))
               }
-              onBlur={() => {
-                if (targetPaceInput.seconds !== "") {
-                  handlePacePartChange(
-                    "seconds",
-                    String(Number(targetPaceInput.seconds)).padStart(2, "0")
-                  );
-                }
-              }}
             />
             <span className="ready-goal-unit">″/km</span>
           </div>
@@ -222,7 +303,7 @@ function RunReady() {
                   : "새로운 기록을 만들어요"}
             </h2>
           </div>
-          <span className="ready-card__icon" aria-hidden="true">🐯</span>
+          <img className="ready-card__icon" src={sprintingCat} alt="" aria-hidden="true" />
         </div>
 
         {selectedPacer ? (

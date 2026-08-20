@@ -6,6 +6,7 @@ import { isBackendConfigured } from "../../api/apiClient";
 import { getAccessToken, isSupabaseConfigured, supabase } from "../../lib/supabase";
 import { normalizeServerRunRecord } from "../../utils/serverRunRecord";
 import { loadRunPreferences, saveRunPreferences } from "../../utils/runPreferences";
+import restingCat from "../../assets/cat-resting.png";
 import "./Home.css";
 
 function loadRunningRecords() {
@@ -228,7 +229,7 @@ function Home() {
         />
       ) : (
         <div className="home-first-run">
-          <span aria-hidden="true">🐯</span>
+          <img src={restingCat} alt="" aria-hidden="true" />
           <div>
             <strong>첫 러닝을 기다리고 있어요.</strong>
             <p>달리기를 마치면 나만의 페이스가 여기에 쌓입니다.</p>

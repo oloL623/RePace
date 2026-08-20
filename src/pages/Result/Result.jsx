@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageShell from "../../components/PageShell";
 import KakaoMap from "../../components/KakaoMap";
@@ -13,17 +13,15 @@ import {
   formatStartLocation,
   UNKNOWN_START_LOCATION,
 } from "../../utils/startLocation";
+import { sortRunningRecords } from "../../utils/runningRecordSort";
 import "./Result.css";
 
 function loadRunningRecords() {
   try {
     const savedRecords = JSON.parse(localStorage.getItem("runningRecords"));
 
-    // 저장 순서와 관계없이 실제 시작 시각이 가장 최근인 기록을 먼저 보여준다.
     return Array.isArray(savedRecords)
-      ? [...savedRecords].sort(
-          (first, second) => new Date(second.startTime) - new Date(first.startTime)
-        )
+      ? sortRunningRecords(savedRecords)
       : [];
   } catch (error) {
     console.error("저장된 러닝 기록을 불러오지 못했습니다.", error);
@@ -96,10 +94,15 @@ function Result() {
   const [selectedRecordId, setSelectedRecordId] = useState(null);
   const [startLocations, setStartLocations] = useState({});
   const [visibleRecordCount, setVisibleRecordCount] = useState(10);
+  const [sortOrder, setSortOrder] = useState("latest");
   const [shareTarget, setShareTarget] = useState(null);
   const [shareError, setShareError] = useState("");
   const [isSharing, setIsSharing] = useState(false);
   const loadMoreRef = useRef(null);
+  const sortedRecords = useMemo(
+    () => sortRunningRecords(records, sortOrder),
+    [records, sortOrder]
+  );
 
   useEffect(() => {
     let isCancelled = false;
@@ -300,11 +303,26 @@ function Result() {
 
       <div className="section-heading">
         <h2>전체 러닝</h2>
+        <select
+          className="result-sort"
+          value={sortOrder}
+          aria-label="러닝 기록 정렬 방법"
+          onChange={(event) => {
+            setSortOrder(event.target.value);
+            setVisibleRecordCount(10);
+            setSelectedRecordId(null);
+          }}
+        >
+          <option value="latest">최신 순</option>
+          <option value="pace">페이스 빠른 순</option>
+          <option value="distance">거리 긴 순</option>
+        </select>
       </div>
 
       <div className="result-list">
         {/* 서버 기록 목록 API가 추가되기 전까지 로컬 기록을 기준으로 표시한다. */}
-        {records.slice(0, visibleRecordCount).map((record) => {
+        {/* 전체 기록을 먼저 정렬한 뒤 화면에는 10개씩 추가로 표시한다. */}
+        {sortedRecords.slice(0, visibleRecordCount).map((record) => {
           const isSelected = selectedRecord?.id === record.id;
           const location = record.path?.[0]
             ? startLocations[record.id] ?? "확인 중"

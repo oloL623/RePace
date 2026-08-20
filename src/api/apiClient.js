@@ -46,8 +46,6 @@ export async function apiRequest(
         signal,
         headers: {
           Accept: "application/json",
-          // 무료 ngrok 주소의 브라우저 경고 페이지 대신 API 응답을 받는다.
-          "ngrok-skip-browser-warning": "1",
           ...(body ? { "Content-Type": "application/json" } : {}),
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },

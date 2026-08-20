@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createRoutePreviewPoints,
   normalizeSharedCourse,
   sortSharedCourses,
 } from "./sharedCourses.js";
@@ -25,7 +24,6 @@ test("공유 코스 응답을 지도 경로와 내 기록 메타데이터로 변
   assert.equal(course.creatorName, "runner");
   assert.equal(course.distance, 5000);
   assert.equal(course.path.length, 2);
-  assert.match(createRoutePreviewPoints(course.path), / /);
 });
 
 test("방금 공유한 코스와 내 코스를 다른 코스보다 먼저 정렬한다", () => {

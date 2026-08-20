@@ -78,19 +78,48 @@
 }
 
 .live-mascot {
-  display: grid;
+  position: relative;
   width: 154px;
   height: 154px;
-  place-items: center;
   border: 1px solid rgba(54, 227, 141, 0.22);
   border-radius: 50%;
   background: radial-gradient(circle, rgba(16, 126, 75, 0.45), rgba(7, 45, 28, 0.65));
   box-shadow: 0 0 55px rgba(8, 183, 107, 0.18);
-  font-size: 78px;
   animation: run-breathe 1.9s ease-in-out infinite;
 }
 
-.live-mascot.is-paused { animation-duration: 3.4s; }
+.live-mascot img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 84%;
+  height: 84%;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+}
+
+.live-mascot__current {
+  z-index: 2;
+  opacity: 0.98;
+}
+
+.live-mascot .live-mascot__ghost {
+  z-index: 1;
+  opacity: 0.2;
+  filter: grayscale(0.35) saturate(0.7);
+  transform: translate(-78%, -50%) scale(0.9);
+}
+
+.live-mascot.is-ahead .live-mascot__current {
+  transform: translate(-32%, -50%);
+}
+
+.live-mascot.is-steady img {
+  width: 142%;
+  height: 142%;
+}
+
+.live-mascot.is-resting { animation-duration: 3.4s; }
 
 @keyframes run-breathe {
   0%, 100% { transform: translateY(0) scale(1); }
