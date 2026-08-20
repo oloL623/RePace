@@ -169,7 +169,7 @@ button:disabled {
   bottom: 0;
   left: 50%;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   width: min(100%, 430px);
   min-height: 76px;
   padding: 8px 12px max(10px, env(safe-area-inset-bottom));
@@ -187,13 +187,13 @@ button:disabled {
   gap: 2px;
   color: #9aa19e;
   background: transparent;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
   cursor: pointer;
 }
 
 .bottom-nav__icon {
-  font-size: 23px;
+  font-size: 20px;
   line-height: 1;
 }
 

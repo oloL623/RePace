@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import runningCat from "../../assets/runningcat.png";
 import "./Splash.css";
 
 function Splash() {
@@ -25,7 +26,7 @@ function Splash() {
       </div>
 
       <div className="mascot mascot--splash" aria-hidden="true">
-        <span>🐯</span>
+        <img src={runningCat} alt="" />
       </div>
 
       <div className="splash-copy">

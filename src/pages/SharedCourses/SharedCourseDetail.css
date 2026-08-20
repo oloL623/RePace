@@ -1,0 +1,121 @@
+.shared-course-map-screen .app-content {
+  padding: 0 0 98px;
+}
+
+.shared-course-back {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink);
+  background: #fff;
+  font-size: 19px;
+  cursor: pointer;
+}
+
+.shared-course-detail-map {
+  min-height: 390px;
+  background: #e8f0f4;
+}
+
+.shared-course-sheet {
+  position: relative;
+  z-index: 2;
+  margin-top: -28px;
+  padding: 28px 24px 24px;
+  border-radius: 28px 28px 0 0;
+  background: #fff;
+}
+
+.shared-course-sheet__handle {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  background: #dfe5e2;
+  transform: translateX(-50%);
+}
+
+.shared-course-sheet h1 {
+  margin: 0 0 18px;
+  font-size: 24px;
+  letter-spacing: -0.035em;
+}
+
+.shared-course-sheet__creator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shared-course-sheet__creator > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.shared-course-sheet__creator > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shared-course-sheet__creator strong {
+  font-size: 13px;
+}
+
+.shared-course-sheet__creator small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.shared-course-sheet dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 20px 0;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface-soft);
+}
+
+.shared-course-sheet dl > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.shared-course-sheet dt {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.shared-course-sheet dd {
+  overflow: hidden;
+  max-width: 100%;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-course-detail-state {
+  margin: 24px 22px;
+}
+
+.shared-course-detail-state p {
+  margin: 0;
+}

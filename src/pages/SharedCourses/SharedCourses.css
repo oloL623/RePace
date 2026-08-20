@@ -1,43 +1,64 @@
-.featured-course {
+.shared-course-list {
+  display: grid;
+  gap: 16px;
+}
+
+.shared-course-list-card {
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: 22px;
   background: #fff;
   box-shadow: 0 10px 26px rgba(26, 61, 44, 0.07);
 }
 
-.featured-course__map,
-.course-card__preview {
+.shared-course-list-card.is-highlighted {
+  border-color: var(--brand);
+  box-shadow: 0 14px 34px rgba(8, 183, 107, 0.18);
+}
+
+.shared-course-list-card__preview {
   position: relative;
+  height: 260px;
   overflow: hidden;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.36)),
-    repeating-linear-gradient(0deg, #dcefea 0 2px, transparent 2px 30px),
-    repeating-linear-gradient(90deg, #dcefea 0 2px, #edf8f4 2px 38px);
+  background: var(--brand-soft);
 }
 
-.featured-course__map {
-  height: 190px;
-}
-
-.course-route {
+.shared-course-list-card__preview > span {
   position: absolute;
-  display: block;
-  border: 7px solid var(--brand);
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  padding: 5px 8px;
   border-radius: 999px;
+  color: #fff;
+  background: var(--brand);
+  font-size: 9px;
+  font-weight: 900;
+  box-shadow: 0 4px 12px rgba(26, 61, 44, 0.16);
 }
 
-.course-route--featured {
-  top: 54px;
-  left: 56px;
-  width: 240px;
-  height: 78px;
-  border-right-color: transparent;
-  transform: rotate(-8deg);
+.shared-course-list-card__empty-map {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: var(--muted);
+  font-size: 11px;
 }
 
-.course-pin {
-  position: absolute;
+.shared-course-list-card__body {
+  padding: 18px;
+}
+
+.shared-course-list-card__creator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.shared-course-list-card__creator > span {
   display: grid;
   width: 26px;
   height: 26px;
@@ -46,102 +67,68 @@
   color: #fff;
   background: var(--ink);
   font-size: 10px;
-  font-style: normal;
   font-weight: 900;
 }
 
-.course-pin--start { top: 58px; left: 48px; }
-.course-pin--finish { right: 65px; bottom: 50px; background: var(--brand); }
-
-.featured-course__content {
-  padding: 20px;
+.shared-course-list-card__body h2 {
+  margin-bottom: 5px;
+  font-size: 18px;
 }
 
-.featured-course__content > span {
-  color: var(--brand-strong);
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.featured-course__content h2 {
-  margin: 6px 0 8px;
-  font-size: 20px;
-}
-
-.featured-course__content p,
-.course-card__body p {
+.shared-course-list-card__body > p {
+  margin-bottom: 16px;
   color: var(--muted);
   font-size: 11px;
-  line-height: 1.55;
 }
 
-.featured-course__content > div {
-  display: flex;
-  gap: 18px;
-  margin: 18px 0;
-  font-size: 13px;
-}
-
-.course-list {
+.shared-course-list-card__body dl {
   display: grid;
-  gap: 12px;
-}
-
-.course-card {
-  display: grid;
-  grid-template-columns: 112px 1fr;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-}
-
-.course-route--wave {
-  top: 32px;
-  left: 19px;
-  width: 78px;
-  height: 42px;
-  border-width: 5px;
-  border-left-color: transparent;
-  transform: rotate(-12deg);
-}
-
-.course-route--loop {
-  top: 25px;
-  left: 24px;
-  width: 66px;
-  height: 58px;
-  border-width: 5px;
-  border-bottom-color: transparent;
-}
-
-.course-card__body {
-  padding: 14px;
-}
-
-.course-card__body h3 {
-  margin: 0 0 5px;
-  font-size: 14px;
-}
-
-.course-card__body p {
-  margin-bottom: 10px;
-}
-
-.course-card__body > div {
-  display: flex;
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
+  margin: 0 0 16px;
 }
 
-.course-card__body button {
-  margin-top: 10px;
-  padding: 7px 10px;
-  border-radius: 9px;
+.shared-course-list-card__body dl > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shared-course-list-card__body dt {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.shared-course-list-card__body dd {
+  overflow: hidden;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-course-list-card__body > button {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 13px;
   color: #fff;
-  background: var(--brand);
-  font-size: 10px;
+  background: var(--ink);
+  font-size: 12px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.shared-course-list__sentinel {
+  height: 1px;
+}
+
+.shared-course-empty {
+  margin-top: 8px;
+}
+
+.shared-course-empty p {
+  margin: 0;
+  line-height: 1.65;
 }

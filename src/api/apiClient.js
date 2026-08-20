@@ -1,3 +1,5 @@
+import { refreshAccessToken } from "../lib/supabase.js";
+
 const env = import.meta.env ?? {};
 const configuredBaseUrl = env.VITE_API_BASE_URL?.trim();
 
@@ -13,6 +15,22 @@ export class ApiError extends Error {
   }
 }
 
+export async function retryUnauthorizedResponse(
+  response,
+  { accessToken, request, refresh = refreshAccessToken }
+) {
+  if (response.status !== 401 || !accessToken) {
+    return response;
+  }
+
+  try {
+    const refreshedToken = await refresh();
+    return refreshedToken ? request(refreshedToken) : response;
+  } catch {
+    return response;
+  }
+}
+
 export async function apiRequest(
   path,
   { method = "GET", accessToken, body, signal } = {}
@@ -21,19 +39,34 @@ export async function apiRequest(
     throw new ApiError("백엔드 주소가 설정되지 않았습니다.");
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    signal,
-    headers: {
-      Accept: "application/json",
-      // 무료 ngrok 주소의 브라우저 경고 페이지 대신 API 응답을 받는다.
-      "ngrok-skip-browser-warning": "1",
-      ...(body ? { "Content-Type": "application/json" } : {}),
-      ...(accessToken
-        ? { Authorization: `Bearer ${accessToken}` }
-        : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
+  const request = async (token) => {
+    try {
+      return await fetch(`${API_BASE_URL}${path}`, {
+        method,
+        signal,
+        headers: {
+          Accept: "application/json",
+          ...(body ? { "Content-Type": "application/json" } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (error) {
+      if (error.name === "AbortError") {
+        throw error;
+      }
+
+      throw new ApiError(
+        "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+        { code: "NETWORK_ERROR" }
+      );
+    }
+  };
+
+  let response = await request(accessToken);
+  response = await retryUnauthorizedResponse(response, {
+    accessToken,
+    request,
   });
 
   let payload = null;

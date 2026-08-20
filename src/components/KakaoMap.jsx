@@ -3,7 +3,14 @@ import { useEffect, useRef, useState } from "react";
 const DEFAULT_LATITUDE = 37.5665;
 const DEFAULT_LONGITUDE = 126.978;
 
-function KakaoMap({ latitude, longitude, path, pastPath }) {
+function KakaoMap({
+  latitude,
+  longitude,
+  path,
+  pastPath,
+  fitPath = false,
+  height = 260,
+}) {
   const mapRef = useRef(null);
 
   const mapInstance = useRef(null);
@@ -129,7 +136,16 @@ function KakaoMap({ latitude, longitude, path, pastPath }) {
 
     // 빈 배열도 적용해야 새 러닝 시작 시 이전 선이 지도에 남지 않는다.
     polylineInstance.current.setPath(linePath);
-  }, [isMapReady, path]);
+
+    if (fitPath && linePath.length > 1 && mapInstance.current) {
+      const bounds = new window.kakao.maps.LatLngBounds();
+
+      linePath.forEach((point) => bounds.extend(point));
+
+      // 결과 화면에서는 선택한 기록의 GPS 경로 전체가 한눈에 보이도록 지도를 맞춘다.
+      mapInstance.current.setBounds(bounds);
+    }
+  }, [fitPath, isMapReady, path]);
 
   useEffect(() => {
     if (!isMapReady || !pastPolylineInstance.current) {
@@ -153,7 +169,7 @@ function KakaoMap({ latitude, longitude, path, pastPath }) {
       ref={mapRef}
       style={{
         width: "100%",
-        height: "260px",
+        height: `${height}px`,
       }}
     />
   );

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppHeader from "../../components/AppHeader";
 import { isSupabaseConfigured, supabase } from "../../lib/supabase";
+import runningCat from "../../assets/runningcat.png";
 import "./Login.css";
 
 function Login() {
@@ -80,7 +81,7 @@ function Login() {
       <div className="auth-screen">
         <AppHeader />
         <main className="auth-content auth-content--center">
-          <div className="auth-icon" aria-hidden="true">🏃</div>
+          <div className="auth-icon" aria-hidden="true"><img src={runningCat} alt="" /></div>
           <p className="page-kicker">LOCAL MODE</p>
           <h1 className="page-title">로컬 기록으로<br />먼저 달려볼까요?</h1>
           <p className="page-description">
@@ -99,7 +100,7 @@ function Login() {
       <div className="auth-screen">
         <AppHeader />
         <main className="auth-content auth-content--center">
-          <div className="auth-icon" aria-hidden="true">🐯</div>
+          <div className="auth-icon" aria-hidden="true"><img src={runningCat} alt="" /></div>
           <p className="page-kicker">WELCOME BACK</p>
           <h1 className="page-title">다시 만났네요!</h1>
           <p className="page-description">{session.user.email}</p>

@@ -6,6 +6,25 @@ export const DEFAULT_RUN_PREFERENCES = {
   voiceCoachingEnabled: true,
 };
 
+export function isValidTargetDistanceInput(value) {
+  return typeof value === "string" && /^(?:\d{1,2}(?:\.\d{0,2})?)?$/.test(value);
+}
+
+export function parseTargetPaceMinutes(minutesInput, secondsInput) {
+  if (!/^\d{1,2}$/.test(minutesInput) || !/^\d{1,2}$/.test(secondsInput)) {
+    return null;
+  }
+
+  const minutes = Number(minutesInput);
+  const seconds = Number(secondsInput);
+
+  if (minutes <= 0 || seconds > 59) {
+    return null;
+  }
+
+  return minutes + seconds / 60;
+}
+
 export function loadRunPreferences() {
   try {
     const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY));

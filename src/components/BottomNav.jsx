@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { path: "/run-ready", label: "달리기", icon: "▶" },
   { path: "/result", label: "내 기록", icon: "◴" },
   { path: "/shared-courses", label: "코스", icon: "⌘" },
+  { path: "/my-page", label: "마이페이지", icon: "♙" },
 ];
 
 function BottomNav() {
@@ -14,7 +15,9 @@ function BottomNav() {
   return (
     <nav className="bottom-nav" aria-label="주요 메뉴">
       {NAV_ITEMS.map((item) => {
-        const isActive = location.pathname === item.path;
+        const isActive = item.path === "/shared-courses"
+          ? location.pathname.startsWith(item.path)
+          : location.pathname === item.path;
 
         return (
           <button

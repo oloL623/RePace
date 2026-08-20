@@ -1,0 +1,151 @@
+.my-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 26px;
+  padding: 16px 8px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  text-align: center;
+}
+
+.my-summary strong,
+.my-summary span {
+  display: block;
+}
+
+.my-summary strong {
+  font-size: 20px;
+}
+
+.my-summary span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.my-last,
+.my-feedback {
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 19px;
+}
+
+.my-last > span,
+.my-feedback > span {
+  color: var(--brand-strong);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.my-last h2,
+.my-feedback h2,
+.my-history h2 {
+  margin: 5px 0 14px;
+  font-size: 16px;
+}
+
+.my-last > div {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.my-last > div strong {
+  font-size: 23px;
+}
+
+.my-last > div b {
+  color: #929b96;
+}
+
+.my-last .is-green {
+  color: var(--brand-strong);
+}
+
+.my-last p,
+.my-feedback p {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.my-feedback {
+  border-color: #ccefd8;
+  background: #effaf2;
+}
+
+.my-feedback > strong {
+  font-size: 13px;
+}
+
+.my-line-chart {
+  display: flex;
+  height: 98px;
+  align-items: flex-end;
+  gap: 4px;
+  margin: 14px 0;
+  border-bottom: 1px solid #d4e5d9;
+}
+
+.my-line-chart i {
+  flex: 1;
+  border-top: 3px solid #5aae6a;
+  transform: skewY(-16deg);
+}
+
+.my-line-chart i:nth-child(2n) {
+  transform: skewY(19deg);
+}
+
+.my-feedback small {
+  color: var(--brand-strong);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.my-history {
+  margin-top: 22px;
+}
+
+.my-history article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 9px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.my-history article div {
+  display: grid;
+  gap: 4px;
+}
+
+.my-history article strong {
+  font-size: 12px;
+}
+
+.my-history article span,
+.my-history > p {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.my-history__action {
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+}
+
+.my-history__action button {
+  padding: 5px 7px;
+  border-radius: 7px;
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
